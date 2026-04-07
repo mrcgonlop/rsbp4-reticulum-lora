@@ -1,0 +1,22 @@
+---
+# radio-lorawan.yml — Activate LoRaWAN gateway profile
+# Usage: ansible-playbook -i inventory/hosts.yml playbooks/radio-lorawan.yml
+
+- name: PiRelay — Switch to LoRaWAN Gateway
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Switch to lorawan-gateway profile
+      ansible.builtin.command: /usr/local/bin/switch-profile.sh lorawan-gateway
+      changed_when: true
+
+    - name: Verify lorawan-gateway.target is active
+      ansible.builtin.command: systemctl is-active lorawan-gateway.target
+      register: target_status
+      changed_when: false
+
+    - name: Display status
+      ansible.builtin.debug:
+        msg: "LoRaWAN gateway profile active: {{ target_status.stdout }}"

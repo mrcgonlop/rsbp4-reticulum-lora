@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+# Wi-Fi HaLow interface configuration
+
+[Match]
+Name=halow0
+
+[Network]
+{% if halow_mode == "ap" %}
+Address=10.0.100.1/24
+DHCPServer=yes
+{% else %}
+DHCP=yes
+{% endif %}

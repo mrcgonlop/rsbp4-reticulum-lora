@@ -1,0 +1,104 @@
+---
+# =============================================================================
+# PiRelay — Master Configuration
+# All tunables live here. Roles reference these variables; do not scatter
+# defaults across roles/*/defaults/.
+# =============================================================================
+
+# --- Identity ----------------------------------------------------------------
+hostname: pirelay
+domain: pirelay.local
+timezone: Europe/Madrid
+locale: en_US.UTF-8
+
+# --- Networking --------------------------------------------------------------
+eth0_static_ip: ""             # empty = DHCP
+halow_mode: client             # "client" or "ap"
+halow_ssid: ""
+halow_psk: ""
+open_to_internet: false        # if true, open 80/443 in nftables
+
+# --- Radio profiles (stacked hats) ------------------------------------------
+stacked_hats: true             # both hats physically connected via stacker
+dual_radio_mode: false         # true = both active simultaneously (experimental)
+default_radio_profile: lora-mesh  # or lorawan-gateway
+
+# --- GPIO pins (do NOT hardcode elsewhere) -----------------------------------
+wm1302_reset_gpio: 17
+sx1262_reset_gpio: 22
+sx1262_busy_gpio: 27
+sx1262_dio1_gpio: 4
+
+# --- SPI chip selects --------------------------------------------------------
+wm1302_spi_cs: 0               # CE0 = GPIO 8
+sx1262_spi_cs: 1               # CE1 = GPIO 7
+
+# --- LoRaWAN (WM1302 / ChirpStack) ------------------------------------------
+lorawan_region: EU868
+lorawan_gateway_id: ""         # auto-generated from MAC if empty
+chirpstack_version: "4"
+chirpstack_concentratord_version: "4.4.2"
+chirpstack_gateway_bridge_version: "4.0.11"
+
+# --- Reticulum / LoRa mesh --------------------------------------------------
+rnode_port: /dev/ttyS0
+rnode_frequency: 868000000
+rnode_bandwidth: 125000
+rnode_spreading_factor: 7
+rnode_coding_rate: 5
+reticulum_enable_transport: true
+reticulum_announce_interval: 360
+lxmf_enable: true
+nomadnet_enable: false
+
+# --- Services ----------------------------------------------------------------
+gitea_version: "1.22.6"
+gitea_http_port: 3000
+gitea_db: sqlite3
+
+samba_shares:
+  - name: shared
+    path: /srv/shared
+    writable: true
+  - name: git-backup
+    path: /srv/gitea-backup
+    writable: false
+
+# --- TLS --------------------------------------------------------------------
+tls_mode: self-signed          # or "letsencrypt"
+letsencrypt_email: ""
+
+# --- System ------------------------------------------------------------------
+enable_monitoring: false
+swap_size_mb: 512
+
+disable_services:
+  - bluetooth
+  - avahi-daemon
+  - triggerhappy
+  - ModemManager
+
+# --- SSH hardening -----------------------------------------------------------
+ssh_port: 22
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+
+# --- Nginx -------------------------------------------------------------------
+nginx_worker_processes: auto
+nginx_worker_connections: 512
+
+# --- Cockpit -----------------------------------------------------------------
+cockpit_bind_address: 127.0.0.1
+cockpit_port: 9090
+
+# --- Firewall (LAN-only ports) ----------------------------------------------
+firewall_allowed_tcp_ports:
+  - 22
+  - 80
+  - 443
+  - 139
+  - 445
+  - 4242
+
+# --- Unattended upgrades ----------------------------------------------------
+enable_unattended_upgrades: true

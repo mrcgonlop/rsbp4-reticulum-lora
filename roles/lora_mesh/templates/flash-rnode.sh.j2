@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Flash SX1262 LoRa hat with RNode firmware
+# Run once after initial hardware setup
+
+set -euo pipefail
+
+echo "=== RNode Firmware Flash ==="
+echo "This will flash the SX1262 LoRa hat with RNode firmware."
+echo "Ensure the SX1262 hat is enabled (RESET pin HIGH) and no other"
+echo "services are using {{ rnode_port }}."
+echo ""
+
+# Reset the SX1262 chip first
+/usr/local/bin/sx1262-reset.sh
+
+echo "Starting RNode auto-install..."
+rnodeconf {{ rnode_port }} --autoinstall
+
+echo ""
+echo "Flash complete. Verify with: rnodeconf {{ rnode_port }} --info"

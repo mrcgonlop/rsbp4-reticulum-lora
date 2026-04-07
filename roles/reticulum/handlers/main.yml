@@ -1,0 +1,14 @@
+---
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: restart reticulum
+  ansible.builtin.systemd:
+    name: reticulum
+    state: restarted
+
+- name: restart lxmf-propagation
+  ansible.builtin.systemd:
+    name: lxmf-propagation
+    state: restarted

@@ -1,0 +1,15 @@
+---
+- name: restart networking
+  ansible.builtin.systemd:
+    name: networking
+    state: restarted
+
+- name: restart systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+
+- name: restart nftables
+  ansible.builtin.systemd:
+    name: nftables
+    state: restarted

@@ -1,0 +1,73 @@
+---
+# roles/lora_mesh/tasks/main.yml — SX1262 SPI overlay, RNode firmware, systemd target
+# Tags: lora_mesh
+
+# --- Dependencies ---
+
+- name: Install RNode dependencies
+  ansible.builtin.apt:
+    name:
+      - python3-pip
+      - python3-serial
+    state: present
+  tags: [lora_mesh]
+
+- name: Install rnodeconf via pip
+  ansible.builtin.pip:
+    name: rnodeconf
+    extra_args: --break-system-packages
+  tags: [lora_mesh]
+
+# --- GPIO setup for SX1262 ---
+
+- name: Deploy SX1262 reset script
+  ansible.builtin.template:
+    src: sx1262-reset.sh.j2
+    dest: /usr/local/bin/sx1262-reset.sh
+    mode: "0755"
+  tags: [lora_mesh]
+
+# --- RNode firmware flash script ---
+
+- name: Deploy RNode flash script
+  ansible.builtin.template:
+    src: flash-rnode.sh.j2
+    dest: /usr/local/bin/flash-rnode.sh
+    mode: "0755"
+  tags: [lora_mesh]
+
+# --- lora-mesh systemd target ---
+
+- name: Deploy lora-mesh.target
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lora-mesh.target
+    content: |
+      [Unit]
+      Description=LoRa Mesh Services (Reticulum + RNode)
+      Requires=reticulum.service
+      After=reticulum.service
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+  notify: reload systemd
+  tags: [lora_mesh]
+
+- name: Deploy rnoded service (RNode device manager)
+  ansible.builtin.template:
+    src: rnoded.service.j2
+    dest: /etc/systemd/system/rnoded.service
+    mode: "0644"
+  notify: reload systemd
+  tags: [lora_mesh]
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: [lora_mesh]
+
+- name: Enable lora-mesh.target on boot (if default profile)
+  ansible.builtin.systemd:
+    name: lora-mesh.target
+    enabled: "{{ default_radio_profile == 'lora-mesh' }}"
+  tags: [lora_mesh]

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Reset the SX1262 LoRa hat via GPIO {{ sx1262_reset_gpio }}
+
+set -euo pipefail
+
+RESET_PIN={{ sx1262_reset_gpio }}
+
+if [ ! -d /sys/class/gpio/gpio${RESET_PIN} ]; then
+    echo "${RESET_PIN}" > /sys/class/gpio/export
+    sleep 0.1
+fi
+
+echo "out" > /sys/class/gpio/gpio${RESET_PIN}/direction
+echo "0" > /sys/class/gpio/gpio${RESET_PIN}/value
+sleep 0.1
+echo "1" > /sys/class/gpio/gpio${RESET_PIN}/value
+sleep 0.1
+
+echo "SX1262 reset complete (GPIO ${RESET_PIN})"

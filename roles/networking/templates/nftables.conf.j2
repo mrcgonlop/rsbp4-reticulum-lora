@@ -1,0 +1,54 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# PiRelay nftables firewall — default-deny INPUT
+
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        # Loopback
+        iif "lo" accept
+
+        # Established/related connections
+        ct state established,related accept
+
+        # ICMP (ping)
+        ip protocol icmp accept
+        ip6 nexthdr icmpv6 accept
+
+        # SSH
+        tcp dport {{ ssh_port }} accept
+
+        # HTTP/HTTPS (Nginx)
+        tcp dport { 80, 443 } accept
+
+        # Samba (LAN only)
+        tcp dport { 139, 445 } accept
+
+        # Reticulum shared instance
+        tcp dport 4242 accept
+
+{% if open_to_internet | bool %}
+        # Public access enabled
+{% endif %}
+
+{% if enable_monitoring | bool %}
+        # Prometheus node_exporter (localhost only in production)
+        tcp dport 9100 ip saddr 127.0.0.0/8 accept
+{% endif %}
+
+        # Log and drop everything else
+        limit rate 5/minute log prefix "nftables-drop: " drop
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+        ct state established,related accept
+    }
+
+    chain output {
+        type filter hook output priority 0; policy accept;
+    }
+}

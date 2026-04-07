@@ -1,0 +1,28 @@
+---
+# roles/monitoring/tasks/main.yml — Prometheus node_exporter (optional)
+# Tags: monitoring
+
+- name: Install prometheus-node-exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+  when: enable_monitoring | bool
+  tags: [monitoring]
+
+- name: Configure node_exporter to listen on localhost
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    content: |
+      ARGS="--web.listen-address=127.0.0.1:9100"
+    mode: "0644"
+  when: enable_monitoring | bool
+  notify: restart node-exporter
+  tags: [monitoring]
+
+- name: Enable and start node_exporter
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+  when: enable_monitoring | bool
+  tags: [monitoring]

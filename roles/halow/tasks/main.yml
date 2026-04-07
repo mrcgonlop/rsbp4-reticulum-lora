@@ -1,0 +1,92 @@
+---
+# roles/halow/tasks/main.yml — Wi-Fi HaLow (WM6108) EXPERIMENTAL
+# Tags: halow
+#
+# WARNING: This role is experimental. The WM6108 kernel module requires
+# out-of-tree compilation and may need patches for your kernel version.
+# Driver source must be obtained from Seeed Studio.
+
+- name: Install kernel headers and build tools
+  ansible.builtin.apt:
+    name:
+      - linux-headers-{{ ansible_kernel }}
+      - build-essential
+      - dkms
+      - wpasupplicant
+      - hostapd
+    state: present
+  tags: [halow]
+
+- name: Check if WM6108 module source exists
+  ansible.builtin.stat:
+    path: /usr/src/wm6108
+  register: wm6108_src
+  tags: [halow]
+
+- name: Warn if WM6108 source not found
+  ansible.builtin.debug:
+    msg: >
+      WM6108 kernel module source not found at /usr/src/wm6108.
+      Download the driver source from Seeed Studio and place it at
+      /usr/src/wm6108/ before running this role.
+      See: https://wiki.seeedstudio.com/wio_wm6108/
+  when: not wm6108_src.stat.exists
+  tags: [halow]
+
+# --- Build and install module (if source present) ---
+
+- name: Build and install WM6108 module
+  when: wm6108_src.stat.exists
+  tags: [halow]
+  block:
+    - name: Build WM6108 kernel module
+      ansible.builtin.command:
+        cmd: make
+        chdir: /usr/src/wm6108
+      register: wm6108_build
+      changed_when: wm6108_build.rc == 0
+
+    - name: Install WM6108 kernel module
+      ansible.builtin.command:
+        cmd: make install
+        chdir: /usr/src/wm6108
+      register: wm6108_install
+      changed_when: wm6108_install.rc == 0
+
+    - name: Load WM6108 module
+      community.general.modprobe:
+        name: wm6108
+        state: present
+
+    - name: Ensure module loads on boot
+      ansible.builtin.lineinfile:
+        path: /etc/modules-load.d/wm6108.conf
+        line: wm6108
+        create: true
+        mode: "0644"
+
+# --- Network interface configuration ---
+
+- name: Deploy HaLow wpa_supplicant config (client mode)
+  ansible.builtin.template:
+    src: wpa_supplicant-halow.conf.j2
+    dest: /etc/wpa_supplicant/wpa_supplicant-halow0.conf
+    mode: "0600"
+  when: halow_mode == "client" and halow_ssid | length > 0
+  tags: [halow]
+
+- name: Deploy HaLow hostapd config (AP mode)
+  ansible.builtin.template:
+    src: hostapd-halow.conf.j2
+    dest: /etc/hostapd/hostapd-halow0.conf
+    mode: "0600"
+  when: halow_mode == "ap"
+  tags: [halow]
+
+- name: Deploy HaLow network interface config
+  ansible.builtin.template:
+    src: halow0.network.j2
+    dest: /etc/systemd/network/80-halow0.network
+    mode: "0644"
+  notify: restart networkd
+  tags: [halow]

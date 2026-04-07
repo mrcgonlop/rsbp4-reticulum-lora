@@ -1,0 +1,73 @@
+---
+# site.yml — Full PiRelay deployment
+# Usage: ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+#
+# Run with --check --diff for dry run.
+# Use --tags to target specific roles (e.g. --tags gitea,nginx).
+
+- name: PiRelay — Full Deployment
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    # Phase 1 — Foundation
+    - role: base
+      tags: [base]
+
+    - role: networking
+      tags: [networking]
+
+    # Phase 2 — Core Services
+    - role: nginx
+      tags: [nginx]
+
+    - role: cockpit
+      tags: [cockpit]
+
+    - role: gitea
+      tags: [gitea]
+
+    - role: samba
+      tags: [samba]
+
+    # Phase 3 — LoRaWAN Gateway
+    - role: lorawan
+      tags: [lorawan]
+
+    # Phase 4 — LoRa Mesh / Reticulum
+    - role: lora_mesh
+      tags: [lora_mesh]
+
+    - role: reticulum
+      tags: [reticulum]
+
+    # Phase 5 — Wi-Fi HaLow (experimental)
+    - role: halow
+      tags: [halow]
+
+    # Optional
+    - role: monitoring
+      tags: [monitoring]
+
+  post_tasks:
+    - name: Set default radio profile
+      ansible.builtin.command: /usr/local/bin/switch-profile.sh {{ default_radio_profile }}
+      when: stacked_hats | bool
+      changed_when: false
+      tags: [radio]
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          PiRelay deployment complete!
+          ========================================
+          Hostname:       {{ hostname }}
+          Domain:         {{ domain }}
+          Radio profile:  {{ default_radio_profile }}
+          Cockpit:        https://{{ domain }}/
+          Gitea:          https://{{ domain }}/gitea/
+          SSH:            ssh pi@{{ domain }}
+          ========================================
+      tags: [always]

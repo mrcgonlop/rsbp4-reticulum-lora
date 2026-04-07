@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+# PiRelay Samba configuration
+
+[global]
+   workgroup = WORKGROUP
+   server string = {{ hostname }}
+   server role = standalone server
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+   logging = file
+   panic action = /usr/share/samba/panic-action %d
+   server role = standalone server
+   obey pam restrictions = yes
+   unix password sync = yes
+   passwd program = /usr/bin/passwd %u
+   passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+   pam password change = yes
+   map to guest = bad user
+
+   # Bind to LAN interfaces only
+   interfaces = lo eth0
+   bind interfaces only = yes
+
+   # Disable NetBIOS over TCP (optional, reduces noise)
+   disable netbios = yes
+
+   # Security
+   min protocol = SMB2
+   encrypt passwords = true
+
+{% for share in samba_shares %}
+[{{ share.name }}]
+   path = {{ share.path }}
+   browseable = yes
+   read only = {{ 'no' if share.writable else 'yes' }}
+   create mask = 0664
+   directory mask = 0775
+   valid users = @sambashare
+
+{% endfor %}

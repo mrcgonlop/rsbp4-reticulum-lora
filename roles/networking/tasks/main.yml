@@ -1,0 +1,79 @@
+---
+# roles/networking/tasks/main.yml — Network configuration, firewall, mDNS
+# Tags: networking
+
+# --- Static IP (optional) ---
+
+- name: Configure static IP on eth0
+  ansible.builtin.copy:
+    dest: /etc/network/interfaces.d/eth0
+    content: |
+      auto eth0
+      iface eth0 inet static
+        address {{ eth0_static_ip }}
+        gateway {{ eth0_static_ip | ansible.utils.ipaddr('network') | default('192.168.1.1') }}
+        dns-nameservers 1.1.1.1 8.8.8.8
+    mode: "0644"
+  when: eth0_static_ip | length > 0
+  notify: restart networking
+  tags: [networking]
+
+# --- mDNS via systemd-resolved ---
+
+- name: Enable systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    enabled: true
+    state: started
+  tags: [networking]
+
+- name: Create resolved.conf.d directory
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+  tags: [networking]
+
+- name: Configure systemd-resolved for mDNS
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/mdns.conf
+    content: |
+      [Resolve]
+      MulticastDNS=yes
+      LLMNR=yes
+    mode: "0644"
+  notify: restart systemd-resolved
+  tags: [networking]
+
+# --- nftables firewall ---
+
+- name: Install nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+  tags: [networking]
+
+- name: Deploy nftables configuration
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: "0644"
+  notify: restart nftables
+  tags: [networking]
+
+- name: Enable nftables
+  ansible.builtin.systemd:
+    name: nftables
+    enabled: true
+    state: started
+  tags: [networking]
+
+# --- IP forwarding (for Reticulum transport) ---
+
+- name: Enable IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_set: true
+    reload: true
+  tags: [networking]

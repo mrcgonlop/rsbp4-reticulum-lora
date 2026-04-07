@@ -1,0 +1,14 @@
+---
+- name: restart sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+
+- name: restart fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: restarted
+
+- name: reboot required
+  ansible.builtin.debug:
+    msg: "A reboot is required for hardware changes to take effect. Run: sudo reboot"

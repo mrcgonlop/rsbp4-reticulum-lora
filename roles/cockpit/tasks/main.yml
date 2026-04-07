@@ -1,0 +1,56 @@
+---
+# roles/cockpit/tasks/main.yml — Web management dashboard
+# Tags: cockpit
+
+- name: Install Cockpit packages
+  ansible.builtin.apt:
+    name:
+      - cockpit
+      - cockpit-networkmanager
+      - cockpit-storaged
+    state: present
+  tags: [cockpit]
+
+- name: Configure Cockpit to bind to localhost
+  ansible.builtin.copy:
+    dest: /etc/cockpit/cockpit.conf
+    content: |
+      [WebService]
+      Origins = https://{{ domain }}
+      ProtocolHeader = X-Forwarded-Proto
+      ForwardedForHeader = X-Forwarded-For
+      LoginTo = false
+      AllowUnencrypted = true
+
+      [Session]
+      IdleTimeout = 15
+    mode: "0644"
+  notify: restart cockpit
+  tags: [cockpit]
+
+- name: Create Cockpit socket override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/cockpit.socket.d
+    state: directory
+    mode: "0755"
+  tags: [cockpit]
+
+- name: Bind Cockpit to localhost only
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/cockpit.socket.d/override.conf
+    content: |
+      [Socket]
+      ListenStream=
+      ListenStream={{ cockpit_bind_address }}:{{ cockpit_port }}
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart cockpit
+  tags: [cockpit]
+
+- name: Enable cockpit socket
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    enabled: true
+    state: started
+  tags: [cockpit]

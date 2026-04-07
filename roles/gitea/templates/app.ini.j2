@@ -1,0 +1,44 @@
+; {{ ansible_managed }}
+; Gitea configuration — PiRelay
+
+APP_NAME = PiRelay Gitea
+RUN_USER = git
+RUN_MODE = prod
+
+[server]
+HTTP_ADDR = 127.0.0.1
+HTTP_PORT = {{ gitea_http_port }}
+ROOT_URL  = https://{{ domain }}/gitea/
+DOMAIN    = {{ domain }}
+SSH_DOMAIN = {{ domain }}
+DISABLE_SSH = false
+SSH_PORT = {{ ssh_port }}
+LFS_START_SERVER = true
+OFFLINE_MODE = true
+
+[database]
+DB_TYPE = {{ gitea_db }}
+PATH    = /var/lib/gitea/data/gitea.db
+
+[repository]
+ROOT = /var/lib/gitea/data/gitea-repositories
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY   = {{ lookup('ansible.builtin.password', '/dev/null chars=ascii_letters,digits length=32') }}
+
+[service]
+DISABLE_REGISTRATION = false
+REQUIRE_SIGNIN_VIEW  = false
+ENABLE_NOTIFY_MAIL   = false
+
+[log]
+MODE      = file
+LEVEL     = warn
+ROOT_PATH = /var/lib/gitea/log
+
+[session]
+PROVIDER = file
+
+[picture]
+DISABLE_GRAVATAR = true

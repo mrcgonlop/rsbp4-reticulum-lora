@@ -1,0 +1,83 @@
+---
+# roles/gitea/tasks/main.yml — Git server (binary install, SQLite)
+# Tags: gitea
+
+- name: Create git system user
+  ansible.builtin.user:
+    name: git
+    system: true
+    shell: /bin/bash
+    home: /home/git
+    create_home: true
+  tags: [gitea]
+
+- name: Create Gitea directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: git
+    group: git
+    mode: "0750"
+  loop:
+    - /var/lib/gitea
+    - /var/lib/gitea/data
+    - /var/lib/gitea/log
+    - /var/lib/gitea/custom
+    - /var/lib/gitea/custom/conf
+    - /etc/gitea
+    - /srv/gitea-backup
+  tags: [gitea]
+
+- name: Download Gitea binary (arm64)
+  ansible.builtin.get_url:
+    url: "https://dl.gitea.com/gitea/{{ gitea_version }}/gitea-{{ gitea_version }}-linux-arm64"
+    dest: /usr/local/bin/gitea
+    mode: "0755"
+  tags: [gitea]
+
+- name: Deploy Gitea configuration
+  ansible.builtin.template:
+    src: app.ini.j2
+    dest: /etc/gitea/app.ini
+    owner: git
+    group: git
+    mode: "0640"
+  notify: restart gitea
+  tags: [gitea]
+
+- name: Deploy Gitea systemd unit
+  ansible.builtin.template:
+    src: gitea.service.j2
+    dest: /etc/systemd/system/gitea.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart gitea
+  tags: [gitea]
+
+- name: Enable and start Gitea
+  ansible.builtin.systemd:
+    name: gitea
+    enabled: true
+    state: started
+  tags: [gitea]
+
+# --- Scheduled backup ---
+
+- name: Create Gitea backup cron job
+  ansible.builtin.cron:
+    name: "gitea backup"
+    minute: "0"
+    hour: "3"
+    user: git
+    job: "/usr/local/bin/gitea dump -c /etc/gitea/app.ini --file /srv/gitea-backup/gitea-dump-$(date +\\%Y\\%m\\%d).zip 2>/dev/null"
+  tags: [gitea]
+
+- name: Create backup cleanup cron (keep 7 days)
+  ansible.builtin.cron:
+    name: "gitea backup cleanup"
+    minute: "30"
+    hour: "3"
+    user: git
+    job: "find /srv/gitea-backup -name 'gitea-dump-*.zip' -mtime +7 -delete 2>/dev/null"
+  tags: [gitea]

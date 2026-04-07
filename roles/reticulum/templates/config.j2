@@ -1,0 +1,43 @@
+# {{ ansible_managed }}
+# Reticulum configuration — PiRelay shared instance
+
+[reticulum]
+  enable_transport = {{ reticulum_enable_transport | lower }}
+  share_instance = Yes
+  shared_instance_port = 37428
+  instance_control_port = 37429
+  panic_on_interface_error = No
+
+[logging]
+  loglevel = 4
+
+# --- Interfaces ---
+
+# RNode interface over serial to SX1262 LoRa hat
+[[RNodeInterface]]
+  type = RNodeInterface
+  interface_enabled = True
+  outgoing = true
+  port = {{ rnode_port }}
+  frequency = {{ rnode_frequency }}
+  bandwidth = {{ rnode_bandwidth }}
+  spreadingfactor = {{ rnode_spreading_factor }}
+  codingrate = {{ rnode_coding_rate }}
+  flow_control = False
+
+# TCP server for LAN clients to connect
+[[TCPServerInterface]]
+  type = TCPServerInterface
+  interface_enabled = True
+  outgoing = true
+  listen_ip = 0.0.0.0
+  listen_port = 4242
+
+# Auto-discovery on local network (multicast)
+[[AutoInterface]]
+  type = AutoInterface
+  interface_enabled = True
+  outgoing = true
+  group_id = reticulum
+  discovery_scope = link
+  discovery_port = 29716

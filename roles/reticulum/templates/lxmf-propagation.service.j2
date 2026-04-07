@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=LXMF Propagation Node
+After=reticulum.service
+Requires=reticulum.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lxmd --propagation --config /etc/reticulum/config
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

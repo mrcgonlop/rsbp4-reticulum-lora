@@ -1,0 +1,97 @@
+---
+# roles/nginx/tasks/main.yml — Reverse proxy with TLS
+# Tags: nginx
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  tags: [nginx]
+
+- name: Create TLS directory
+  ansible.builtin.file:
+    path: /etc/nginx/ssl
+    state: directory
+    mode: "0700"
+  tags: [nginx]
+
+# --- Self-signed TLS ---
+
+- name: Generate self-signed TLS certificate
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -days 3650
+    -newkey rsa:2048
+    -keyout /etc/nginx/ssl/pirelay.key
+    -out /etc/nginx/ssl/pirelay.crt
+    -subj "/C=ES/ST=Madrid/L=Madrid/O=PiRelay/CN={{ domain }}"
+  args:
+    creates: /etc/nginx/ssl/pirelay.crt
+  when: tls_mode == "self-signed"
+  notify: restart nginx
+  tags: [nginx]
+
+# --- Let's Encrypt TLS ---
+
+- name: Install certbot
+  ansible.builtin.apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+    state: present
+  when: tls_mode == "letsencrypt"
+  tags: [nginx]
+
+- name: Obtain Let's Encrypt certificate
+  ansible.builtin.command: >
+    certbot --nginx --non-interactive --agree-tos
+    --email {{ letsencrypt_email }}
+    -d {{ domain }}
+  args:
+    creates: /etc/letsencrypt/live/{{ domain }}/fullchain.pem
+  when: tls_mode == "letsencrypt"
+  tags: [nginx]
+
+# --- Nginx configuration ---
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: restart nginx
+  tags: [nginx]
+
+- name: Deploy main nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+  notify: restart nginx
+  tags: [nginx]
+
+- name: Deploy PiRelay site configuration
+  ansible.builtin.template:
+    src: pirelay-site.conf.j2
+    dest: /etc/nginx/sites-available/pirelay.conf
+    mode: "0644"
+  notify: restart nginx
+  tags: [nginx]
+
+- name: Enable PiRelay site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/pirelay.conf
+    dest: /etc/nginx/sites-enabled/pirelay.conf
+    state: link
+  notify: restart nginx
+  tags: [nginx]
+
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  tags: [nginx]
+
+- name: Enable and start nginx
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
+  tags: [nginx]

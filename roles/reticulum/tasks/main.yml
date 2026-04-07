@@ -1,0 +1,94 @@
+---
+# roles/reticulum/tasks/main.yml — Reticulum shared instance, LXMF, NomadNet
+# Tags: reticulum
+
+- name: Install Reticulum and LXMF via pip
+  ansible.builtin.pip:
+    name:
+      - rns
+      - lxmf
+    extra_args: --break-system-packages
+  tags: [reticulum]
+
+- name: Install NomadNet (optional)
+  ansible.builtin.pip:
+    name: nomadnet
+    extra_args: --break-system-packages
+  when: nomadnet_enable | bool
+  tags: [reticulum]
+
+- name: Create Reticulum configuration directory
+  ansible.builtin.file:
+    path: /etc/reticulum
+    state: directory
+    mode: "0755"
+  tags: [reticulum]
+
+- name: Deploy Reticulum configuration
+  ansible.builtin.template:
+    src: config.j2
+    dest: /etc/reticulum/config
+    mode: "0644"
+  notify: restart reticulum
+  tags: [reticulum]
+
+- name: Deploy Reticulum systemd service
+  ansible.builtin.template:
+    src: reticulum.service.j2
+    dest: /etc/systemd/system/reticulum.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart reticulum
+  tags: [reticulum]
+
+- name: Deploy LXMF propagation node service
+  ansible.builtin.template:
+    src: lxmf-propagation.service.j2
+    dest: /etc/systemd/system/lxmf-propagation.service
+    mode: "0644"
+  when: lxmf_enable | bool
+  notify:
+    - reload systemd
+    - restart lxmf-propagation
+  tags: [reticulum]
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: [reticulum]
+
+- name: Enable and start Reticulum
+  ansible.builtin.systemd:
+    name: reticulum
+    enabled: true
+    state: started
+  tags: [reticulum]
+
+- name: Enable LXMF propagation node
+  ansible.builtin.systemd:
+    name: lxmf-propagation
+    enabled: true
+    state: started
+  when: lxmf_enable | bool
+  tags: [reticulum]
+
+- name: Create reticulum.service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/reticulum.service.d
+    state: directory
+    mode: "0755"
+  tags: [reticulum]
+
+- name: Bind reticulum.service to lora-mesh.target
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/reticulum.service.d/target.conf
+    content: |
+      [Unit]
+      PartOf=lora-mesh.target
+
+      [Install]
+      WantedBy=lora-mesh.target
+    mode: "0644"
+  notify: reload systemd
+  tags: [reticulum]

@@ -1,0 +1,37 @@
+---
+# roles/samba/tasks/main.yml — File sharing
+# Tags: samba
+
+- name: Install Samba
+  ansible.builtin.apt:
+    name:
+      - samba
+      - samba-common-bin
+    state: present
+  tags: [samba]
+
+- name: Create share directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ '0775' if item.writable else '0755' }}"
+  loop: "{{ samba_shares }}"
+  tags: [samba]
+
+- name: Deploy Samba configuration
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    mode: "0644"
+  notify: restart samba
+  tags: [samba]
+
+- name: Enable and start Samba services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - smbd
+    - nmbd
+  tags: [samba]

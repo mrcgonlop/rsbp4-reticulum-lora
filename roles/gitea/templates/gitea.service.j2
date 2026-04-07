@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Gitea (Git with a cup of tea)
+After=network.target
+
+[Service]
+Type=simple
+User=git
+Group=git
+WorkingDirectory=/var/lib/gitea
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=always
+RestartSec=5
+Environment=USER=git HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea
+LimitNOFILE=65536
+
+# Hardening
+ProtectSystem=strict
+ReadWritePaths=/var/lib/gitea /etc/gitea /srv/gitea-backup /home/git
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

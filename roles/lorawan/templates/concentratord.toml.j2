@@ -1,0 +1,43 @@
+# {{ ansible_managed }}
+# ChirpStack Concentratord — WM1302 (SX1302) configuration
+
+[concentratord]
+log_level = "INFO"
+
+  [concentratord.api]
+  event_bind = "ipc:///tmp/concentratord_event"
+  command_bind = "ipc:///tmp/concentratord_command"
+
+[gateway]
+{% if lorawan_gateway_id | length > 0 %}
+gateway_id = "{{ lorawan_gateway_id }}"
+{% else %}
+# gateway_id auto-derived from MAC address
+{% endif %}
+
+  [gateway.model]
+  com_type = "SPI"
+  spi_path = "/dev/spidev0.0"
+  reset_pin = {{ wm1302_reset_gpio }}
+
+  [gateway.concentrator]
+  multi_sf_channels = [
+    868100000,
+    868300000,
+    868500000,
+    867100000,
+    867300000,
+    867500000,
+    867700000,
+    867900000,
+  ]
+
+    [gateway.concentrator.lora_std]
+    frequency = 868300000
+    bandwidth = 250000
+    spreading_factor = 7
+
+    [gateway.concentrator.fsk]
+    frequency = 868800000
+    bandwidth = 125000
+    datarate = 50000

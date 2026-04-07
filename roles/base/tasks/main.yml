@@ -1,0 +1,234 @@
+---
+# roles/base/tasks/main.yml — OS foundation, hardening, hardware interfaces
+# Tags: base
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+  tags: [base]
+
+- name: Set hostname in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1'
+    line: "127.0.1.1\t{{ hostname }} {{ hostname }}.{{ domain }}"
+  tags: [base]
+
+- name: Set timezone
+  ansible.builtin.timezone:
+    name: "{{ timezone }}"
+  tags: [base]
+
+- name: Generate locale
+  ansible.builtin.locale_gen:
+    name: "{{ locale }}"
+    state: present
+  tags: [base]
+
+- name: Set default locale
+  ansible.builtin.copy:
+    dest: /etc/default/locale
+    content: |
+      LANG={{ locale }}
+      LC_ALL={{ locale }}
+    mode: "0644"
+  tags: [base]
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [base]
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: safe
+  tags: [base]
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name:
+      - git
+      - curl
+      - wget
+      - python3-pip
+      - python3-venv
+      - nftables
+      - dnsutils
+      - htop
+      - tmux
+      - vim
+      - rsync
+      - fail2ban
+      - unattended-upgrades
+      - apt-listchanges
+      - sudo
+      - ufw
+      - lsof
+      - jq
+      - pigpio
+      - python3-pigpio
+      - i2c-tools
+      - spi-tools
+    state: present
+  tags: [base]
+
+- name: Disable unnecessary services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ disable_services }}"
+  failed_when: false
+  tags: [base]
+
+# --- Swap configuration ---
+
+- name: Check current swap size
+  ansible.builtin.command: swapon --show --noheadings --bytes
+  register: swap_check
+  changed_when: false
+  tags: [base]
+
+- name: Configure swap file
+  when: swap_size_mb > 0
+  tags: [base]
+  block:
+    - name: Create swap file
+      ansible.builtin.command: fallocate -l {{ swap_size_mb }}M /swapfile
+      args:
+        creates: /swapfile
+
+    - name: Set swap file permissions
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Format swap file
+      ansible.builtin.command: mkswap /swapfile
+      args:
+        creates: /swapfile
+      register: mkswap_result
+      changed_when: mkswap_result.rc == 0
+
+    - name: Enable swap file
+      ansible.builtin.command: swapon /swapfile
+      when: "'/swapfile' not in swap_check.stdout"
+      changed_when: true
+
+    - name: Ensure swap in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^/swapfile'
+        line: "/swapfile none swap sw 0 0"
+
+# --- SSH hardening ---
+
+- name: Harden SSH configuration
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?PermitRootLogin', line: "PermitRootLogin {{ ssh_permit_root_login }}" }
+    - { regexp: '^#?PasswordAuthentication', line: "PasswordAuthentication {{ ssh_password_authentication }}" }
+    - { regexp: '^#?X11Forwarding', line: "X11Forwarding no" }
+    - { regexp: '^#?MaxAuthTries', line: "MaxAuthTries 3" }
+    - { regexp: '^#?Port ', line: "Port {{ ssh_port }}" }
+  notify: restart sshd
+  tags: [base]
+
+- name: Configure fail2ban for SSH
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.conf
+    content: |
+      [sshd]
+      enabled = true
+      port = {{ ssh_port }}
+      maxretry = 5
+      bantime = 3600
+      findtime = 600
+    mode: "0644"
+  notify: restart fail2ban
+  tags: [base]
+
+# --- Enable hardware interfaces ---
+
+- name: Enable SPI
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^#?dtparam=spi='
+    line: "dtparam=spi=on"
+  notify: reboot required
+  tags: [base]
+
+- name: Enable I2C
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^#?dtparam=i2c_arm='
+    line: "dtparam=i2c_arm=on"
+  notify: reboot required
+  tags: [base]
+
+- name: Enable serial port (disable console)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^#?enable_uart='
+    line: "enable_uart=1"
+  notify: reboot required
+  tags: [base]
+
+- name: Disable serial console on UART
+  ansible.builtin.replace:
+    path: /boot/firmware/cmdline.txt
+    regexp: 'console=serial0,115200\s*'
+    replace: ''
+  notify: reboot required
+  tags: [base]
+
+# --- SPI overlays for stacked hats ---
+
+- name: Add WM1302 SPI overlay (CE0)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    line: "dtoverlay=spi0-1cs,cs0_pin=8"
+    insertafter: '^dtparam=spi='
+  when: stacked_hats | bool
+  notify: reboot required
+  tags: [base]
+
+- name: Add SX1262 SPI overlay (CE1)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    line: "dtoverlay=spi0-2cs"
+    insertafter: 'dtoverlay=spi0-1cs'
+  when: stacked_hats | bool
+  notify: reboot required
+  tags: [base]
+
+# --- Unattended upgrades ---
+
+- name: Configure unattended-upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}";
+          "${distro_id}:${distro_codename}-security";
+      };
+      Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+    mode: "0644"
+  when: enable_unattended_upgrades | bool
+  tags: [base]
+
+- name: Enable auto-upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+  when: enable_unattended_upgrades | bool
+  tags: [base]

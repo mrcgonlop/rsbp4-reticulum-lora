@@ -1,0 +1,18 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Reticulum Network Stack
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/rnsd --config /etc/reticulum/config
+Restart=always
+RestartSec=5
+
+# Hardening
+ProtectSystem=strict
+ReadWritePaths=/etc/reticulum /var/lib/reticulum
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Wi-Fi HaLow (802.11ah) client configuration
+
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+
+network={
+    ssid="{{ halow_ssid }}"
+    psk="{{ halow_psk }}"
+    key_mgmt=WPA-PSK
+}
