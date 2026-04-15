@@ -66,8 +66,6 @@
       - ufw
       - lsof
       - jq
-      - pigpio
-      - python3-pigpio
       - python3-spidev
       - python3-rpi.gpio
       - i2c-tools
