@@ -16,7 +16,10 @@
     dest: /etc/cockpit/cockpit.conf
     content: |
       [WebService]
-      Origins = https://{{ domain }}
+      # Accept all hostname/port variants so reverse-proxy + mDNS + direct
+      # access all pass the Origin check. Cockpit compares the browser's
+      # Origin header character-exactly, so every shape must be listed.
+      Origins = https://{{ domain }} https://{{ domain }}:443 https://{{ hostname }} https://{{ hostname }}:443 https://{{ hostname }}.local https://{{ hostname }}.local:443
       ProtocolHeader = X-Forwarded-Proto
       ForwardedForHeader = X-Forwarded-For
       LoginTo = false

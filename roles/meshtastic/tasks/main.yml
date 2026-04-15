@@ -15,7 +15,7 @@
 
 - name: Download Meshtastic apt repo GPG key
   ansible.builtin.get_url:
-    url: https://download.opensuse.org/repositories/network:/Meshtastic/Debian_12/Release.key
+    url: https://download.opensuse.org/repositories/network:Meshtastic:beta/Debian_12/Release.key
     dest: /etc/apt/keyrings/meshtastic.asc
     mode: "0644"
     force: false
@@ -23,7 +23,7 @@
 
 - name: Add Meshtastic apt repo
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/meshtastic.asc] http://download.opensuse.org/repositories/network:/Meshtastic/Debian_12/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/meshtastic.asc] http://download.opensuse.org/repositories/network:/Meshtastic:/beta/Debian_12/ /"
     filename: meshtastic
     state: present
     update_cache: true

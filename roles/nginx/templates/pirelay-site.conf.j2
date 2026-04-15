@@ -37,11 +37,16 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket support (required by Cockpit)
+        # WebSocket support (required by Cockpit). $connection_upgrade is
+        # defined by the map in nginx.conf and resolves to "upgrade" only
+        # when the client actually requests a WebSocket handshake.
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $connection_upgrade;
 
+        # Cockpit uses long-lived streams; disable buffering and extend
+        # the read timeout so idle sessions don't get killed.
         proxy_buffering off;
+        proxy_read_timeout 90m;
     }
 
     # --- Gitea ---
