@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# Flash SX1262 LoRa hat with RNode firmware
-# Run once after initial hardware setup
+# Flash the Waveshare SX1262 HAT with RNode firmware.
+# Run once after initial hardware setup.
 
 set -euo pipefail
 
@@ -14,8 +14,22 @@ echo ""
 # Reset the SX1262 chip first
 /usr/local/bin/sx1262-reset.sh
 
+# Prefer the console-script shim; fall back to the Python module so this
+# script survives pip entry-point weirdness (e.g. if rnodeconf's shim was
+# clobbered by an earlier uninstall but RNS.Utilities.rnodeconf is still
+# importable).
+if command -v rnodeconf >/dev/null 2>&1; then
+    RNODECONF=(rnodeconf)
+elif python3 -c "import RNS.Utilities.rnodeconf" 2>/dev/null; then
+    RNODECONF=(python3 -m RNS.Utilities.rnodeconf)
+else
+    echo "ERROR: rnodeconf is not available. Reinstall rns:" >&2
+    echo "  sudo pip install --force-reinstall --no-deps rns --break-system-packages" >&2
+    exit 1
+fi
+
 echo "Starting RNode auto-install..."
-rnodeconf {{ rnode_port }} --autoinstall
+"${RNODECONF[@]}" {{ rnode_port }} --autoinstall
 
 echo ""
-echo "Flash complete. Verify with: rnodeconf {{ rnode_port }} --info"
+echo "Flash complete. Verify with: ${RNODECONF[*]} {{ rnode_port }} --info"

@@ -1,0 +1,66 @@
+---
+# roles/meshtastic/tasks/main.yml — Meshtastic daemon for SPI-connected SX1262 HAT
+# Tags: meshtastic
+#
+# Runs meshtasticd on the Pi, talking directly to the Waveshare SX1262 868M
+# LoRa HAT over SPI. Gives the Pi a Meshtastic mesh presence without any MCU.
+# Package source: openSUSE Build Service (official Meshtastic repo).
+
+- name: Ensure apt keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  tags: [meshtastic]
+
+- name: Download Meshtastic apt repo GPG key
+  ansible.builtin.get_url:
+    url: https://download.opensuse.org/repositories/network:/Meshtastic/Debian_12/Release.key
+    dest: /etc/apt/keyrings/meshtastic.asc
+    mode: "0644"
+    force: false
+  tags: [meshtastic]
+
+- name: Add Meshtastic apt repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/meshtastic.asc] http://download.opensuse.org/repositories/network:/Meshtastic/Debian_12/ /"
+    filename: meshtastic
+    state: present
+    update_cache: true
+  tags: [meshtastic]
+
+- name: Install meshtasticd
+  ansible.builtin.apt:
+    name: meshtasticd
+    state: present
+  tags: [meshtastic]
+
+- name: Install meshtastic Python CLI
+  ansible.builtin.pip:
+    name: meshtastic
+    extra_args: --break-system-packages
+  tags: [meshtastic]
+
+- name: Create meshtasticd config directory
+  ansible.builtin.file:
+    path: /etc/meshtasticd
+    state: directory
+    mode: "0755"
+  tags: [meshtastic]
+
+- name: Deploy meshtasticd config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/meshtasticd/config.yaml
+    mode: "0644"
+    backup: true
+  notify: restart meshtasticd
+  tags: [meshtastic]
+
+- name: Enable and start meshtasticd
+  ansible.builtin.systemd:
+    name: meshtasticd
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [meshtastic]

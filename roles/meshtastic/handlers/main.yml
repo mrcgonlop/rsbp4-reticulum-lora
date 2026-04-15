@@ -1,0 +1,5 @@
+---
+- name: restart meshtasticd
+  ansible.builtin.systemd:
+    name: meshtasticd
+    state: restarted

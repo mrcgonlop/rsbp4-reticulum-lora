@@ -19,10 +19,16 @@ halow_psk: ""
 open_to_internet: false        # if true, open 80/443 in nftables
 
 # --- GPIO pins (SX1262 HAT) --------------------------------------------------
+# Legacy values; only referenced by the unused sx1262-reset.sh helper.
+# meshtasticd uses its own hardcoded-for-Waveshare values in the config template.
 sx1262_reset_gpio: 22
 sx1262_busy_gpio: 27
 sx1262_dio1_gpio: 4
 sx1262_spi_cs: 1               # CE1 = GPIO 7
+
+# --- Meshtastic --------------------------------------------------------------
+meshtastic_enable: true
+meshtastic_region: EU_868
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
 rnode_port: /dev/ttyS0

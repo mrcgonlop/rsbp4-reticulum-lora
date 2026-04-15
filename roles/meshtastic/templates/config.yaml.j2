@@ -1,0 +1,30 @@
+# {{ ansible_managed }}
+# meshtasticd config for Waveshare SX126X 868M LoRa HAT on Raspberry Pi.
+#
+# Pin numbers below are **Broadcom (BCM) GPIO** numbers, matching the values
+# documented by the Meshtastic project for the Waveshare SX126X LoRa HAT:
+#   https://meshtastic.org/docs/hardware/devices/linux-native-hardware/
+#
+# If your HAT has a different revision or the radio fails to initialise,
+# verify the pin mapping against your board silkscreen / Waveshare wiki
+# and edit the values here. Re-run: sudo systemctl restart meshtasticd
+
+Lora:
+  Module: sx1262
+  DIO2_AS_RF_SWITCH: true
+  CS: 21          # NSS / chip-select (BCM GPIO)
+  IRQ: 16         # DIO1 (BCM GPIO)
+  Busy: 20        # BUSY (BCM GPIO)
+  Reset: 18       # RESET (BCM GPIO)
+  spidev: spidev0.0
+
+General:
+  MaxNodes: 200
+  MaxMessageQueue: 100
+
+Webserver:
+  Port: 9443
+  RootPath: /usr/share/doc/meshtasticd/web
+
+GPS:
+  SerialPath: ""

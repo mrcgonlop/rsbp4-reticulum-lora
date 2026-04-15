@@ -34,14 +34,19 @@
     - role: samba
       tags: [samba]
 
-    # Phase 3 — LoRa Mesh / Reticulum (SX1262)
+    # Phase 3 — Meshtastic (Waveshare SX1262 HAT, SPI)
+    - role: meshtastic
+      tags: [meshtastic]
+      when: meshtastic_enable | bool
+
+    # Phase 4 — Reticulum (requires a USB RNode device, e.g. LilyGO T-Beam)
     - role: lora_mesh
       tags: [lora_mesh]
 
     - role: reticulum
       tags: [reticulum]
 
-    # Phase 4 — Wi-Fi HaLow (experimental, gated by halow_enable)
+    # Phase 5 — Wi-Fi HaLow (experimental, gated by halow_enable)
     - role: halow
       tags: [halow]
 
@@ -62,6 +67,8 @@
           Gitea:          https://{{ domain }}/gitea/
           SSH:            ssh pi@{{ domain }}
           ========================================
-          LoRa stack:     systemctl status lora-mesh.target
-          Reticulum:      rnstatus
+          Meshtastic:     systemctl status meshtasticd
+                          meshtastic --info
+          Reticulum:      systemctl status lora-mesh.target
+                          rnstatus (needs a USB RNode plugged in)
       tags: [always]
