@@ -18,10 +18,14 @@ halow_ssid: ""
 halow_psk: ""
 open_to_internet: false        # if true, open 80/443 in nftables
 
-# --- Radio profiles (stacked hats) ------------------------------------------
-stacked_hats: true             # both hats physically connected via stacker
-dual_radio_mode: false         # true = both active simultaneously (experimental)
-default_radio_profile: lora-mesh  # or lorawan-gateway
+# --- Radio profiles (single hat, auto-detected) -----------------------------
+# Only one hat is physically connected at a time. At boot, a detection
+# oneshot probes the SPI/GPIO lines and activates the matching systemd target.
+# To swap hats: power off, change the hat, power on — detection runs again.
+radio_detection_mode: auto     # auto | manual
+radio_profile_manual: none     # used when radio_detection_mode: manual
+                               # (none | lora-mesh | lorawan-gateway)
+radio_profile_fallback: none   # used when auto-detection finds no hat
 
 # --- GPIO pins (do NOT hardcode elsewhere) -----------------------------------
 wm1302_reset_gpio: 17

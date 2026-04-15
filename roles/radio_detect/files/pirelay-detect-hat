@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""
+pirelay-detect-hat — Detect which LoRa HAT is physically connected and
+activate the matching systemd target.
+
+Detection strategy:
+  1. SX1262 (Waveshare LoRa HAT) via GPIO 27 (BUSY) pull-up test.
+     The SX1262 actively drives BUSY low in standby. With the internal
+     pull-up enabled, a real chip reads LOW; a floating (absent) pin
+     reads HIGH.
+  2. WM1302 (Seeed LoRaWAN HAT) via SPI version-register probe on CE0.
+     A real SX1302 responds with a non-trivial byte; an empty bus returns
+     0x00 or 0xFF.
+
+Result written to /run/pirelay/radio-profile:
+  lora-mesh         → SX1262 detected
+  lorawan-gateway   → WM1302 detected
+  none              → no hat detected (or probe failed)
+
+The script then calls `systemctl start <target>` for the detected profile.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import time
+import subprocess
+
+PROFILE_FILE = "/run/pirelay/radio-profile"
+PROFILE_DIR = "/run/pirelay"
+
+# --- GPIO pins (match group_vars/all.yml) ---
+SX1262_RESET = 22
+SX1262_BUSY = 27
+WM1302_RESET = 17
+
+# --- Targets ---
+PROFILE_TARGETS = {
+    "lora-mesh": "lora-mesh.target",
+    "lorawan-gateway": "lorawan-gateway.target",
+}
+
+
+def log(msg: str) -> None:
+    print(f"[pirelay-detect-hat] {msg}", flush=True)
+
+
+def detect_sx1262() -> bool:
+    """Probe SX1262 via GPIO 27 pull-up test."""
+    try:
+        import RPi.GPIO as GPIO
+    except ImportError:
+        log("RPi.GPIO not available; skipping SX1262 probe")
+        return False
+
+    try:
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+
+        # Release SX1262 from reset
+        GPIO.setup(SX1262_RESET, GPIO.OUT)
+        GPIO.output(SX1262_RESET, GPIO.LOW)
+        time.sleep(0.02)
+        GPIO.output(SX1262_RESET, GPIO.HIGH)
+        time.sleep(0.05)
+
+        # Read BUSY with internal pull-up
+        GPIO.setup(SX1262_BUSY, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        time.sleep(0.01)
+
+        # Sample a few times to defeat noise
+        samples = [GPIO.input(SX1262_BUSY) for _ in range(5)]
+        present = all(s == GPIO.LOW for s in samples)
+
+        log(f"SX1262 BUSY samples={samples} → present={present}")
+        return present
+    except Exception as exc:
+        log(f"SX1262 probe error: {exc}")
+        return False
+    finally:
+        try:
+            GPIO.cleanup([SX1262_RESET, SX1262_BUSY])
+        except Exception:
+            pass
+
+
+def detect_wm1302() -> bool:
+    """Probe WM1302 (SX1302) via SPI version-register read on CE0."""
+    try:
+        import RPi.GPIO as GPIO
+        import spidev
+    except ImportError:
+        log("spidev or RPi.GPIO not available; skipping WM1302 probe")
+        return False
+
+    try:
+        # Pulse WM1302 reset
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(WM1302_RESET, GPIO.OUT)
+        GPIO.output(WM1302_RESET, GPIO.LOW)
+        time.sleep(0.1)
+        GPIO.output(WM1302_RESET, GPIO.HIGH)
+        time.sleep(0.2)
+
+        spi = spidev.SpiDev()
+        spi.open(0, 0)          # bus 0, CE0
+        spi.max_speed_hz = 2_000_000
+        spi.mode = 0
+
+        # SX1302 register read: [addr_msb (R/W=0), addr_lsb, dummy, data]
+        # VERSION register is at 0x5600 on the SX1302.
+        resp = spi.xfer2([0x56, 0x00, 0x00, 0x00])
+        spi.close()
+
+        version = resp[3]
+        log(f"WM1302 SPI response={[hex(b) for b in resp]} version=0x{version:02x}")
+
+        # Bare SPI bus returns all-0x00 or all-0xFF; anything else implies a chip
+        present = version not in (0x00, 0xFF)
+        return present
+    except Exception as exc:
+        log(f"WM1302 probe error: {exc}")
+        return False
+    finally:
+        try:
+            GPIO.cleanup([WM1302_RESET])
+        except Exception:
+            pass
+
+
+def detect_profile(fallback: str = "none") -> str:
+    log("Starting radio hat detection...")
+
+    if detect_sx1262():
+        log("→ SX1262 detected (Reticulum / LoRa mesh)")
+        return "lora-mesh"
+
+    if detect_wm1302():
+        log("→ WM1302 detected (LoRaWAN gateway)")
+        return "lorawan-gateway"
+
+    log(f"→ No hat detected, using fallback: {fallback}")
+    return fallback
+
+
+def write_profile(profile: str) -> None:
+    os.makedirs(PROFILE_DIR, exist_ok=True)
+    with open(PROFILE_FILE, "w") as f:
+        f.write(profile + "\n")
+    log(f"Wrote {PROFILE_FILE} = {profile}")
+
+
+def activate_target(profile: str) -> None:
+    target = PROFILE_TARGETS.get(profile)
+    if not target:
+        log(f"No target to activate for profile '{profile}'")
+        return
+
+    # Stop any other radio target first
+    for other_profile, other_target in PROFILE_TARGETS.items():
+        if other_profile != profile:
+            subprocess.run(
+                ["systemctl", "stop", other_target],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+    log(f"Starting {target}")
+    result = subprocess.run(["systemctl", "start", target], check=False)
+    if result.returncode != 0:
+        log(f"Failed to start {target} (rc={result.returncode})")
+        sys.exit(result.returncode)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Detect LoRa HAT and activate target")
+    parser.add_argument(
+        "--mode",
+        choices=["auto", "manual"],
+        default="auto",
+        help="auto = probe hardware; manual = use --profile",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["none", "lora-mesh", "lorawan-gateway"],
+        default="none",
+        help="Profile to activate when --mode=manual (or fallback for auto)",
+    )
+    parser.add_argument(
+        "--no-activate",
+        action="store_true",
+        help="Detect only; do not call systemctl",
+    )
+    args = parser.parse_args()
+
+    if args.mode == "manual":
+        profile = args.profile
+        log(f"Manual mode: profile={profile}")
+    else:
+        profile = detect_profile(fallback=args.profile)
+
+    write_profile(profile)
+
+    if not args.no_activate:
+        activate_target(profile)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -68,6 +68,8 @@
       - jq
       - pigpio
       - python3-pigpio
+      - python3-spidev
+      - python3-rpi.gpio
       - i2c-tools
       - spi-tools
     state: present
@@ -186,23 +188,19 @@
   notify: reboot required
   tags: [base]
 
-# --- SPI overlays for stacked hats ---
+# --- SPI chip selects ---
+# Single-hat mode: dtparam=spi=on already exposes CE0 (spidev0.0) and
+# CE1 (spidev0.1). No stacked overlays needed — whichever hat is
+# physically plugged in will respond on its own CE line.
 
-- name: Add WM1302 SPI overlay (CE0)
+- name: Remove any legacy stacked-hat overlays
   ansible.builtin.lineinfile:
     path: /boot/firmware/config.txt
-    line: "dtoverlay=spi0-1cs,cs0_pin=8"
-    insertafter: '^dtparam=spi='
-  when: stacked_hats | bool
-  notify: reboot required
-  tags: [base]
-
-- name: Add SX1262 SPI overlay (CE1)
-  ansible.builtin.lineinfile:
-    path: /boot/firmware/config.txt
-    line: "dtoverlay=spi0-2cs"
-    insertafter: 'dtoverlay=spi0-1cs'
-  when: stacked_hats | bool
+    regexp: "{{ item }}"
+    state: absent
+  loop:
+    - '^dtoverlay=spi0-1cs'
+    - '^dtoverlay=spi0-2cs'
   notify: reboot required
   tags: [base]
 

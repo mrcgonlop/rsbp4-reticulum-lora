@@ -145,8 +145,10 @@
     daemon_reload: true
   tags: [lorawan]
 
-- name: Enable lorawan-gateway.target on boot (if default profile)
+- name: Ensure lorawan-gateway.target is NOT enabled on boot
   ansible.builtin.systemd:
     name: lorawan-gateway.target
-    enabled: "{{ default_radio_profile == 'lorawan-gateway' }}"
+    enabled: false
   tags: [lorawan]
+  # The pirelay-detect-hat.service starts this target only if a WM1302
+  # is detected at boot. Do not auto-enable it here.

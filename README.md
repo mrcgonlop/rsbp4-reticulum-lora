@@ -18,125 +18,90 @@
 | PoE+ Hat _or_ 5 V / 3 A PSU | Power | — | PoE simplifies field deployment |
 | 2×20 GPIO stacker header | Hat stacking | — | Solder onto WM1302 hat to pass through pins to SX1262 |
 
-### 1.1 Stacked Hats — GPIO Pin Map & Software Switch
+### 1.1 Single Hat, Auto-Detected at Boot
 
-Both hats attach to SPI0 but use **different chip-selects and GPIO lines**, so
-they can be physically stacked using a 2×20 GPIO stacker header and
-software-switched without re-wiring.
+Only one LoRa HAT is connected at a time. To swap roles, power off the Pi,
+physically change the HAT, and power on again — a systemd oneshot probes
+the hardware at boot and activates the matching services.
 
 #### Pin Allocation
 
-| Signal | WM1302 Hat | SX1262 LoRa Hat | Conflict? |
-|---|---|---|---|
-| SPI0 MOSI | GPIO 10 | GPIO 10 | Shared bus ✓ |
-| SPI0 MISO | GPIO 9 | GPIO 9 | Shared bus ✓ |
-| SPI0 SCLK | GPIO 11 | GPIO 11 | Shared bus ✓ |
-| **Chip Select** | **CE0 (GPIO 8)** | **CE1 (GPIO 7)** | **No conflict** |
-| Reset | GPIO 17 | GPIO 22 | No conflict |
-| Busy / DIO1 | — | GPIO 27 (BUSY), GPIO 4 (DIO1) | No conflict |
-| Power enable | — | — | See note below |
+| Signal | WM1302 HAT | SX1262 LoRa HAT |
+|---|---|---|
+| SPI0 MOSI | GPIO 10 | GPIO 10 |
+| SPI0 MISO | GPIO 9 | GPIO 9 |
+| SPI0 SCLK | GPIO 11 | GPIO 11 |
+| Chip Select | CE0 (GPIO 8) | CE1 (GPIO 7) |
+| Reset | GPIO 17 | GPIO 22 |
+| BUSY | — | GPIO 27 |
+| DIO1 | — | GPIO 4 |
 
-> **Note — Waveshare SX1262 hat:** Confirm your specific revision's jumper
-> settings. Some revisions default CE1 to GPIO 7, others use a solder bridge.
-> Check the silk screen on the PCB and set to CE1 if not already.
+> **Note — Waveshare SX1262 HAT:** confirm the jumper that selects CE0 vs
+> CE1. Our setup uses CE1; set the jumper (or solder bridge) accordingly.
 
-#### Software Switch via GPIO Reset
+#### How detection works
 
-The trick: **hold a hat's RESET pin LOW to electrically disable it on the SPI
-bus.** Both device tree overlays stay loaded; the inactive hat simply doesn't
-respond.
+`pirelay-detect-hat.service` runs at boot, before any radio target. The
+Python probe in `/usr/local/bin/pirelay-detect-hat` performs two tests:
+
+1. **SX1262 test (GPIO 27 pull-up).** Release GPIO 22 (reset). Configure
+   GPIO 27 (BUSY) as input with the internal pull-up enabled. A real
+   SX1262 in standby actively drives BUSY low → reads `LOW`. A floating
+   (absent) pin → reads `HIGH`. Five samples are taken to defeat noise.
+2. **WM1302 test (SPI version read).** Pulse GPIO 17 to reset the SX1302,
+   then read the version register at 0x5600 on `spidev0.0`. A real chip
+   responds with a non-trivial byte; an empty bus returns 0x00 or 0xFF.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                       SPI0 Bus                           │
-│                                                          │
-│   ┌─────────────┐  CE0    ┌──────────────┐  CE1         │
-│   │   WM1302    │◄────────│    SX1262    │◄──────       │
-│   │  (LoRaWAN)  │         │  (LoRa P2P)  │              │
-│   └──────┬──────┘         └──────┬───────┘              │
-│     RST=GPIO 17             RST=GPIO 22                  │
-│          │                       │                       │
-│     HIGH=active             HIGH=active                  │
-│     LOW=disabled            LOW=disabled                 │
-└──────────────────────────────────────────────────────────┘
+                         pirelay-detect-hat.service
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+              probe SX1262                    probe WM1302
+            (GPIO 27 pull-up)              (SPI 0x5600 read)
+                    │                               │
+                  found?                          found?
+                    │                               │
+           yes ◄────┴────► no               yes ◄──┴──► no
+            │                                 │         │
+            ▼                                 ▼         ▼
+     systemctl start              systemctl start    profile = none
+     lora-mesh.target              lorawan-gateway.target
 ```
 
-The switch script (`scripts/switch-profile.sh`) does three things:
+The result is written to `/run/pirelay/radio-profile` and the corresponding
+systemd target is activated. Neither target is `enabled` on boot — the
+detection service is the single source of truth for what starts.
 
-1. Stops the outgoing profile's services
-2. Pulls the outgoing hat's RESET pin LOW (disable)
-3. Pulls the incoming hat's RESET pin HIGH, starts its services
-
-```bash
-#!/usr/bin/env bash
-# Usage: switch-profile.sh lorawan-gateway | lora-mesh | both-off
-
-set -euo pipefail
-
-WM1302_RST=17
-SX1262_RST=22
-
-gpio_set() { echo "$2" > /sys/class/gpio/gpio$1/value; }
-gpio_export() {
-  [ -d /sys/class/gpio/gpio$1 ] || echo "$1" > /sys/class/gpio/export
-  echo "out" > /sys/class/gpio/gpio$1/direction
-}
-
-gpio_export $WM1302_RST
-gpio_export $SX1262_RST
-
-case "${1:-}" in
-  lorawan-gateway)
-    systemctl stop lora-mesh.target 2>/dev/null || true
-    gpio_set $SX1262_RST 0   # disable SX1262
-    gpio_set $WM1302_RST 1   # enable WM1302
-    sleep 0.5
-    systemctl start lorawan-gateway.target
-    echo "Active profile: lorawan-gateway"
-    ;;
-  lora-mesh)
-    systemctl stop lorawan-gateway.target 2>/dev/null || true
-    gpio_set $WM1302_RST 0   # disable WM1302
-    gpio_set $SX1262_RST 1   # enable SX1262
-    sleep 0.5
-    systemctl start lora-mesh.target
-    echo "Active profile: lora-mesh"
-    ;;
-  both-off)
-    systemctl stop lorawan-gateway.target 2>/dev/null || true
-    systemctl stop lora-mesh.target 2>/dev/null || true
-    gpio_set $WM1302_RST 0
-    gpio_set $SX1262_RST 0
-    echo "All radios disabled"
-    ;;
-  *)
-    echo "Usage: $0 {lorawan-gateway|lora-mesh|both-off}" >&2
-    exit 1
-    ;;
-esac
-```
-
-#### Ansible Variable
+#### Ansible variables
 
 ```yaml
-# Stacked hat mode (both physically connected, software-switched)
-stacked_hats: true              # enables both DT overlays at boot
-default_radio_profile: lora-mesh  # which profile starts on boot
+# Auto-detect at boot (default). Swap hats by power-cycling.
+radio_detection_mode: auto
+radio_profile_fallback: none   # when no hat is detected
+
+# Or force a profile (skip hardware probing):
+# radio_detection_mode: manual
+# radio_profile_manual: lora-mesh
 ```
 
-#### Simultaneous Operation (Experimental)
+#### Manual override
 
-Since the hats occupy separate CE lines, it is **theoretically possible** to run
-both stacks simultaneously (LoRaWAN gateway + Reticulum mesh). Both RESET pins
-stay HIGH, and each service talks to its own CE line. The Ansible variable
-`dual_radio_mode: false` gates this. Risks:
+The `switch-profile.sh` helper lets you override the detection result
+without rebooting — useful for testing:
 
-- SPI bus contention under heavy traffic (both hats share MOSI/MISO/SCLK)
-- Potential RF interference at 868 MHz (antennas centimetres apart)
-- Increased power draw (~0.5 W extra)
+```bash
+sudo /usr/local/bin/switch-profile.sh lora-mesh         # force Reticulum
+sudo /usr/local/bin/switch-profile.sh lorawan-gateway   # force ChirpStack
+sudo /usr/local/bin/switch-profile.sh detect            # re-run probe
+sudo /usr/local/bin/switch-profile.sh status            # show state
+sudo /usr/local/bin/switch-profile.sh both-off          # stop everything
+```
 
-Recommendation: start with software-switching, test dual mode once single
-profiles are stable.
+Note: starting a radio target without the matching HAT physically present
+will cause the service to fail at runtime (ChirpStack can't find the SX1302,
+RNode can't open the serial device). Use `detect` or power-cycle after
+swapping hardware.
 
 ---
 
@@ -222,9 +187,10 @@ pirelay/
 │   ├── cockpit/           ← install + Nginx integration
 │   ├── gitea/             ← binary install, SQLite, systemd unit
 │   ├── samba/             ← shares config, users
-│   ├── lorawan/           ← WM1302 SPI overlay, ChirpStack stack
-│   ├── lora_mesh/         ← SX1262 overlay, RNode firmware, Reticulum config
-│   ├── reticulum/         ← Reticulum shared instance, LXMF, NomadNet
+│   ├── lorawan/           ← WM1302 + ChirpStack (concentratord + gw bridge)
+│   ├── lora_mesh/         ← SX1262 reset + RNode flash + lora-mesh.target
+│   ├── reticulum/         ← Reticulum shared instance, LXMF propagation
+│   ├── radio_detect/      ← auto-detect which HAT is plugged in at boot
 │   ├── halow/             ← WM6108 kernel module, wpa_supplicant/hostapd
 │   └── monitoring/        ← node_exporter (optional)
 ├── playbooks/
@@ -240,8 +206,8 @@ pirelay/
 │   ├── gitea-app.ini.j2
 │   └── smb.conf.j2
 └── scripts/
-    ├── flash-rnode.sh      ← flash SX1262 with RNode firmware
-    └── switch-profile.sh   ← convenience wrapper around systemd targets
+    ├── flash-rnode.sh      ← flash SX1262 with RNode firmware (one-time)
+    └── switch-profile.sh   ← manual override for the auto-detection result
 ```
 
 ### 4.1 Key Ansible Variables (`group_vars/all.yml`)
@@ -260,10 +226,10 @@ halow_ssid: ""
 halow_psk: ""
 open_to_internet: false        # if true, NAT ports 80/443
 
-# --- Radio profiles (stacked hats) ---
-stacked_hats: true             # both hats physically connected via stacker
-dual_radio_mode: false         # true = both active simultaneously (experimental)
-default_radio_profile: lora-mesh  # or lorawan-gateway
+# --- Radio profiles (single hat, auto-detected) ---
+radio_detection_mode: auto     # auto | manual
+radio_profile_manual: none     # used when radio_detection_mode: manual
+radio_profile_fallback: none   # used when auto-detection finds no hat
 
 # --- LoRaWAN (WM1302 / ChirpStack) ---
 lorawan_region: EU868
@@ -353,16 +319,20 @@ disable_services:              # strip bloat
 - Disable NetBIOS if not needed
 
 ### 5.7 `lorawan`
-- Enable SPI overlay for WM1302 (`dtoverlay=spi0-1cs,cs0_pin=8`)
-- GPIO reset script for SX1302 chip
-- Install ChirpStack concentratord + gateway-bridge (arm64 .deb)
-- Region config: EU868 channels
-- Systemd units bound to `lorawan-gateway.target`
+- Install ChirpStack concentratord + gateway-bridge from ChirpStack APT repo (arm64 .deb, keyring in `/etc/apt/keyrings/`)
+- Deploy concentratord TOML + EU868 channel plan + gateway-bridge config
+- GPIO reset helper for the SX1302 chip
+- Services bound to `lorawan-gateway.target` via systemd drop-ins; target is **not** auto-enabled on boot — it is started by `pirelay-detect-hat.service` only when a WM1302 is detected
 
 ### 5.8 `lora_mesh`
-- Enable SPI overlay for SX1262
-- Flash RNode firmware onto SX1262 via `rnodeconf` (serial)
-- Systemd unit for `rnoded` bound to `lora-mesh.target`
+- Install `rnodeconf` via pip (`--break-system-packages`)
+- SX1262 reset helper script + one-shot RNode flash helper
+- `lora-mesh.target` systemd target; **not** auto-enabled on boot — started by `pirelay-detect-hat.service` when an SX1262 is detected
+
+### 5.8.5 `radio_detect`
+- Install `/usr/local/bin/pirelay-detect-hat` (Python probe)
+- Deploy `pirelay-detect-hat.service` systemd oneshot, ordered `Before=` the radio targets and `After=network.target`
+- At boot, probes GPIO 27 with internal pull-up (SX1262 BUSY test), falls back to an SPI version-register read on CE0 (WM1302), writes the result to `/run/pirelay/radio-profile`, and calls `systemctl start` on the matching target
 
 ### 5.9 `reticulum`
 - `pip install rns lxmf nomadnet --break-system-packages`
@@ -465,7 +435,8 @@ Key variables to review:
 | Variable | Default | Change if... |
 |---|---|---|
 | `eth0_static_ip` | `""` (DHCP) | You want a fixed IP |
-| `default_radio_profile` | `lora-mesh` | You prefer LoRaWAN gateway at boot |
+| `radio_detection_mode` | `auto` | Set to `manual` if you want to force a profile |
+| `radio_profile_manual` | `none` | In manual mode, which target to start at boot |
 | `lorawan_region` | `EU868` | You're outside Europe |
 | `tls_mode` | `self-signed` | You have a domain + public IP |
 | `gitea_version` | `1.22.6` | Newer version available |
@@ -541,15 +512,39 @@ sudo usermod -aG sambashare myuser
 sudo smbpasswd -a myuser
 ```
 
-### 6.10 Switch Radio Profiles
+### 6.10 Swap LoRa HATs
+
+The normal workflow is:
+
+1. `sudo poweroff` on the Pi
+2. Physically unplug the current LoRa HAT
+3. Plug in the other HAT
+4. Power the Pi back on
+
+On next boot, `pirelay-detect-hat.service` probes the hardware and
+automatically activates `lora-mesh.target` (SX1262) or
+`lorawan-gateway.target` (WM1302). You can confirm with:
 
 ```bash
-# On the Pi (or via SSH)
-sudo /usr/local/bin/switch-profile.sh lora-mesh        # Reticulum mesh
-sudo /usr/local/bin/switch-profile.sh lorawan-gateway   # ChirpStack LoRaWAN
-sudo /usr/local/bin/switch-profile.sh both-off          # Disable all radios
+ssh pi@pirelay.local 'cat /run/pirelay/radio-profile'
+ssh pi@pirelay.local 'sudo /usr/local/bin/switch-profile.sh status'
+ssh pi@pirelay.local 'journalctl -u pirelay-detect-hat -b'
+```
 
-# Or remotely via Ansible
+If you need to force a specific profile without the matching HAT
+(e.g. for config testing), use `switch-profile.sh`:
+
+```bash
+sudo /usr/local/bin/switch-profile.sh lora-mesh         # force Reticulum
+sudo /usr/local/bin/switch-profile.sh lorawan-gateway   # force ChirpStack
+sudo /usr/local/bin/switch-profile.sh detect            # re-run probe
+sudo /usr/local/bin/switch-profile.sh both-off          # stop everything
+sudo /usr/local/bin/switch-profile.sh status            # show state
+```
+
+Or from your workstation:
+
+```bash
 ansible-playbook playbooks/radio-mesh.yml
 ansible-playbook playbooks/radio-lorawan.yml
 ```
@@ -575,8 +570,11 @@ ansible-playbook playbooks/site.yml --check --diff
 |---|---|
 | `UNREACHABLE!` in Ansible | Check Pi IP in `inventory/hosts.yml`, verify SSH key |
 | SPI devices not visible | Reboot Pi after first `base` role run |
-| ChirpStack won't start | Check `journalctl -u chirpstack-concentratord -f` — verify WM1302 is connected and SPI overlay loaded |
+| Detection picks wrong HAT | Check `journalctl -u pirelay-detect-hat -b` — verify GPIO 27 reads LOW with SX1262 installed; check that no external pull-up/down is fitted |
+| Detection returns `none` | Confirm the HAT is seated, GPIO 27 / CE lines not in use by another service, and SPI is enabled in `/boot/firmware/config.txt` |
+| ChirpStack won't start | Check `journalctl -u chirpstack-concentratord -f` — verify the WM1302 HAT is physically plugged in |
 | Reticulum can't find RNode | Ensure firmware is flashed (`flash-rnode.sh`), check `ls /dev/ttyS0` |
+| Wrong target auto-started | Force one with `sudo switch-profile.sh lora-mesh` or set `radio_detection_mode: manual` in `group_vars/all.yml` |
 | Nginx 502 Bad Gateway | The upstream service isn't running — check with `systemctl status gitea` / `cockpit.socket` |
 | Cockpit login fails | Cockpit uses PAM — log in with the Pi's system username/password |
 | Self-signed cert warning | Expected — browser will warn, click "Advanced" → "Proceed" |
@@ -640,23 +638,26 @@ Leaves ample headroom on a 4 GB Pi. A 2 GB model would work but is tight if Chir
 - [ ] Implement `samba` role (shares, users)
 - [ ] Test: browse to Cockpit and Gitea via `https://pirelay.local/`
 
-### Phase 3 — Stacked Hats & LoRaWAN Gateway
-- [ ] Solder GPIO stacker header onto WM1302 hat
-- [ ] Stack: Pi ← WM1302 (bottom, CE0) ← SX1262 (top, CE1)
-- [ ] Verify both SPI devices visible: `ls /dev/spidev0.*` shows `.0` and `.1`
-- [ ] Implement `switch-profile.sh` GPIO reset script
-- [ ] Implement `lorawan` role (SPI overlay, ChirpStack concentratord + gateway-bridge)
-- [ ] Create `lorawan-gateway.target` systemd target
-- [ ] Test: activate lorawan profile, see gateway in ChirpStack web UI
+### Phase 3 — LoRaWAN Gateway (WM1302)
+- [ ] Plug WM1302 HAT onto the Pi (single HAT, no stacking)
+- [ ] Verify CE0 SPI device visible: `ls /dev/spidev0.0`
+- [ ] Implement `lorawan` role (ChirpStack concentratord + gateway-bridge)
+- [ ] Create `lorawan-gateway.target` systemd target (not auto-enabled)
+- [ ] Test: boot, detection should activate LoRaWAN, see gateway in ChirpStack web UI
 
-### Phase 4 — LoRa Mesh / Reticulum
-- [ ] Confirm SX1262 CE1 jumper setting matches DT overlay
+### Phase 4 — LoRa Mesh / Reticulum (SX1262)
+- [ ] Power off, swap in SX1262 HAT (confirm CE1 jumper), power on
+- [ ] Verify CE1 SPI device visible: `ls /dev/spidev0.1`
 - [ ] Flash RNode firmware with `rnodeconf --autoinstall` (script: `flash-rnode.sh`)
 - [ ] Implement `reticulum` role (config, shared instance, transport node)
-- [ ] Implement `lora_mesh` role (SPI overlay, rnoded, systemd target)
-- [ ] Create `lora-mesh.target` systemd target
-- [ ] Test: switch to lora-mesh profile, discover Pi as Reticulum transport node
-- [ ] Test: switch back to lorawan, confirm clean transition
+- [ ] Implement `lora_mesh` role (reset helper, flash helper, lora-mesh.target)
+- [ ] Test: boot, detection should activate lora-mesh, Pi appears as Reticulum transport node
+
+### Phase 4.5 — Hat auto-detection
+- [ ] Implement `radio_detect` role with Python probe (`pirelay-detect-hat`)
+- [ ] Verify `journalctl -u pirelay-detect-hat -b` shows correct detection for each HAT
+- [ ] Verify `/run/pirelay/radio-profile` matches the plugged-in HAT
+- [ ] Test: swap HAT, power-cycle, confirm clean transition to the other profile
 
 ### Phase 5 — Wi-Fi HaLow
 - [ ] Obtain WM6108 kernel module source from Seeed
@@ -678,17 +679,22 @@ Leaves ample headroom on a 4 GB Pi. A 2 GB model would work but is tight if Chir
 - [ ] I2P transport for anonymous Reticulum peering
 - [ ] Prometheus + Grafana on a separate host, scraping node_exporter
 - [ ] USB SSD boot for SD card longevity
-- [ ] Dual radio mode: test both hats active simultaneously (`dual_radio_mode: true`)
+- [ ] Refine detection heuristics (e.g. add retry logic for flaky SPI responses)
 
 ---
 
 ## 11. Useful Commands Reference
 
 ```bash
-# Switch radio profile (stacked hats)
-sudo scripts/switch-profile.sh lora-mesh
-sudo scripts/switch-profile.sh lorawan-gateway
-sudo scripts/switch-profile.sh both-off
+# Inspect / force radio profile
+sudo /usr/local/bin/switch-profile.sh status
+sudo /usr/local/bin/switch-profile.sh detect
+sudo /usr/local/bin/switch-profile.sh lora-mesh
+sudo /usr/local/bin/switch-profile.sh lorawan-gateway
+
+# See detection result & logs
+cat /run/pirelay/radio-profile
+journalctl -u pirelay-detect-hat -b
 
 # Check Reticulum status
 rnstatus

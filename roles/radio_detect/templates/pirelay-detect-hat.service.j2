@@ -1,0 +1,18 @@
+# {{ ansible_managed }}
+[Unit]
+Description=PiRelay — Detect LoRa HAT and activate matching radio target
+After=network.target local-fs.target
+Before=lora-mesh.target lorawan-gateway.target
+ConditionPathExists=/usr/local/bin/pirelay-detect-hat
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/pirelay-detect-hat \
+    --mode {{ radio_detection_mode }} \
+    --profile {{ radio_profile_manual if radio_detection_mode == 'manual' else radio_profile_fallback }}
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

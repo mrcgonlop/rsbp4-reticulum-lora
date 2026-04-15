@@ -43,9 +43,9 @@
     dest: /etc/systemd/system/lora-mesh.target
     content: |
       [Unit]
-      Description=LoRa Mesh Services (Reticulum + RNode)
-      Requires=reticulum.service
-      After=reticulum.service
+      Description=LoRa Mesh Services (Reticulum + LXMF)
+      Wants=reticulum.service lxmf-propagation.service
+      After=reticulum.service lxmf-propagation.service
 
       [Install]
       WantedBy=multi-user.target
@@ -66,8 +66,10 @@
     daemon_reload: true
   tags: [lora_mesh]
 
-- name: Enable lora-mesh.target on boot (if default profile)
+- name: Ensure lora-mesh.target is NOT enabled on boot
   ansible.builtin.systemd:
     name: lora-mesh.target
-    enabled: "{{ default_radio_profile == 'lora-mesh' }}"
+    enabled: false
   tags: [lora_mesh]
+  # The pirelay-detect-hat.service starts this target only if an SX1262
+  # is detected at boot. Do not auto-enable it here.
