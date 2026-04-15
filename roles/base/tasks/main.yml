@@ -106,10 +106,8 @@
 
     - name: Format swap file
       ansible.builtin.command: mkswap /swapfile
-      args:
-        creates: /swapfile
-      register: mkswap_result
-      changed_when: mkswap_result.rc == 0
+      when: "'/swapfile' not in swap_check.stdout"
+      changed_when: true
 
     - name: Enable swap file
       ansible.builtin.command: swapon /swapfile
