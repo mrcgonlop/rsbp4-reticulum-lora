@@ -12,9 +12,14 @@
     state: present
   tags: [lora_mesh]
 
-- name: Install rnodeconf via pip
+# rnodeconf is provided by the `rns` pip package (installed by the reticulum
+# role). The standalone `rnodeconf` pip package is deprecated — do not install
+# it, it shadows the bundled one with an outdated binary.
+
+- name: Ensure deprecated standalone rnodeconf package is absent
   ansible.builtin.pip:
     name: rnodeconf
+    state: absent
     extra_args: --break-system-packages
   tags: [lora_mesh]
 
