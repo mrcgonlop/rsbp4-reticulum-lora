@@ -13,13 +13,37 @@
     mode: "0755"
   tags: [meshtastic]
 
-# The OBS Meshtastic beta project publishes separate subrepos per Debian
-# release (Raspbian_12, Raspbian_13, ...). Pin to the subrepo that matches
-# the host's actual distro release so dependency pins (libgpiod2, libyaml-cpp)
-# resolve against the OS packages that are actually installed.
+# The OBS Meshtastic beta project publishes separate subrepos per distro.
+# Raspbian_13 only ships armhf binaries (no arm64), so 64-bit Pi OS trixie
+# hosts must pull from Debian_13 which does publish arm64. Bookworm keeps
+# the historical Debian_12 target.
 - name: Select Meshtastic OBS subrepo for this distro release
   ansible.builtin.set_fact:
-    meshtastic_obs_dist: "Raspbian_{{ '13' if ansible_distribution_release == 'trixie' else '12' }}"
+    meshtastic_obs_dist: "Debian_{{ '13' if ansible_distribution_release == 'trixie' else '12' }}"
+  tags: [meshtastic]
+
+# Wipe any stale meshtastic apt sources and their cached Packages lists.
+# Earlier runs may have written a Debian_12 entry, and apt can still
+# resolve against those cached lists even after we overwrite the file.
+- name: Remove stale meshtastic apt sources file
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/meshtastic.list
+    state: absent
+  tags: [meshtastic]
+
+- name: Find stale meshtastic apt cache lists
+  ansible.builtin.find:
+    paths: /var/lib/apt/lists
+    patterns: "*Meshtastic*"
+    file_type: any
+  register: meshtastic_stale_lists
+  tags: [meshtastic]
+
+- name: Remove stale meshtastic apt cache lists
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ meshtastic_stale_lists.files }}"
   tags: [meshtastic]
 
 - name: Download Meshtastic apt repo GPG key
