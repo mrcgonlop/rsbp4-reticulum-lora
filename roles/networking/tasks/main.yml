@@ -18,31 +18,19 @@
   notify: restart networking
   tags: [networking]
 
-# --- mDNS via systemd-resolved ---
+# --- mDNS via avahi-daemon (Pi OS default) ---
 
-- name: Enable systemd-resolved
+- name: Install avahi-daemon
+  ansible.builtin.apt:
+    name: avahi-daemon
+    state: present
+  tags: [networking]
+
+- name: Enable avahi-daemon
   ansible.builtin.systemd:
-    name: systemd-resolved
+    name: avahi-daemon
     enabled: true
     state: started
-  tags: [networking]
-
-- name: Create resolved.conf.d directory
-  ansible.builtin.file:
-    path: /etc/systemd/resolved.conf.d
-    state: directory
-    mode: "0755"
-  tags: [networking]
-
-- name: Configure systemd-resolved for mDNS
-  ansible.builtin.copy:
-    dest: /etc/systemd/resolved.conf.d/mdns.conf
-    content: |
-      [Resolve]
-      MulticastDNS=yes
-      LLMNR=yes
-    mode: "0644"
-  notify: restart systemd-resolved
   tags: [networking]
 
 # --- nftables firewall ---
