@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:meshtastic.org)"
+      "WebFetch(domain:meshtastic.org)",
+      "Bash(gh release:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:download.opensuse.org)"
     ]
   }
 }

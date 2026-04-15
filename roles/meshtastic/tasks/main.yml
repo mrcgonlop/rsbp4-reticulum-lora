@@ -13,17 +13,26 @@
     mode: "0755"
   tags: [meshtastic]
 
+# The OBS Meshtastic beta project publishes separate subrepos per Debian
+# release (Raspbian_12, Raspbian_13, ...). Pin to the subrepo that matches
+# the host's actual distro release so dependency pins (libgpiod2, libyaml-cpp)
+# resolve against the OS packages that are actually installed.
+- name: Select Meshtastic OBS subrepo for this distro release
+  ansible.builtin.set_fact:
+    meshtastic_obs_dist: "Raspbian_{{ '13' if ansible_distribution_release == 'trixie' else '12' }}"
+  tags: [meshtastic]
+
 - name: Download Meshtastic apt repo GPG key
   ansible.builtin.get_url:
-    url: https://download.opensuse.org/repositories/network:Meshtastic:beta/Debian_12/Release.key
+    url: "https://download.opensuse.org/repositories/network:Meshtastic:beta/{{ meshtastic_obs_dist }}/Release.key"
     dest: /etc/apt/keyrings/meshtastic.asc
     mode: "0644"
-    force: false
+    force: true
   tags: [meshtastic]
 
 - name: Add Meshtastic apt repo
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/meshtastic.asc] http://download.opensuse.org/repositories/network:/Meshtastic:/beta/Debian_12/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/meshtastic.asc] http://download.opensuse.org/repositories/network:/Meshtastic:/beta/{{ meshtastic_obs_dist }}/ /"
     filename: meshtastic
     state: present
     update_cache: true
