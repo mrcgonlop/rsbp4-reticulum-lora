@@ -68,10 +68,21 @@
     state: present
   tags: [meshtastic]
 
-- name: Install meshtastic Python CLI
-  ansible.builtin.pip:
-    name: meshtastic
-    extra_args: --break-system-packages
+# On trixie, Debian's python3-packaging (25.0) ships without a RECORD file,
+# so pip cannot replace it even with --break-system-packages — which blocks
+# any system-wide pip install of meshtastic (it pins packaging<25.0).
+# Install the CLI into an isolated pipx venv instead. pipx is packaged in
+# trixie and is the recommended way to install Python CLIs on PEP 668 hosts.
+- name: Install pipx
+  ansible.builtin.apt:
+    name: pipx
+    state: present
+  tags: [meshtastic]
+
+- name: Install meshtastic Python CLI via pipx
+  ansible.builtin.command:
+    cmd: pipx install --global meshtastic
+    creates: /usr/local/bin/meshtastic
   tags: [meshtastic]
 
 - name: Create meshtasticd config directory
