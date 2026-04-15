@@ -92,12 +92,31 @@
     mode: "0755"
   tags: [meshtastic]
 
-- name: Deploy meshtasticd config
+- name: Ensure meshtasticd config.d exists
+  ansible.builtin.file:
+    path: /etc/meshtasticd/config.d
+    state: directory
+    mode: "0755"
+  tags: [meshtastic]
+
+- name: Deploy meshtasticd top-level config
   ansible.builtin.template:
     src: config.yaml.j2
     dest: /etc/meshtasticd/config.yaml
     mode: "0644"
     backup: true
+  notify: restart meshtasticd
+  tags: [meshtastic]
+
+# meshtasticd ships HAT hardware presets under /etc/meshtasticd/available.d/.
+# You activate one by symlinking it into /etc/meshtasticd/config.d/. The
+# Waveshare SX126x preset covers the SX1262 868M HAT (GPIO21/16/20/18 + CS
+# via software GPIO21; ANT_SW on GPIO6).
+- name: Activate Waveshare SX126x HAT preset
+  ansible.builtin.file:
+    src: /etc/meshtasticd/available.d/lora-waveshare-sxxx.yaml
+    dest: /etc/meshtasticd/config.d/lora-waveshare-sxxx.yaml
+    state: link
   notify: restart meshtasticd
   tags: [meshtastic]
 
