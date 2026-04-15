@@ -1,5 +1,5 @@
 ---
-# site.yml — Full PiRelay deployment
+# site.yml — Full PiRelay deployment (SX1262 / Reticulum)
 # Usage: ansible-playbook -i inventory/hosts.yml playbooks/site.yml
 #
 # Run with --check --diff for dry run.
@@ -34,22 +34,14 @@
     - role: samba
       tags: [samba]
 
-    # Phase 3 — LoRaWAN Gateway services (installed but gated by detection)
-    - role: lorawan
-      tags: [lorawan]
-
-    # Phase 4 — LoRa Mesh / Reticulum services (installed but gated by detection)
+    # Phase 3 — LoRa Mesh / Reticulum (SX1262)
     - role: lora_mesh
       tags: [lora_mesh]
 
     - role: reticulum
       tags: [reticulum]
 
-    # Phase 4.5 — Hat auto-detection (decides which target to start at boot)
-    - role: radio_detect
-      tags: [radio_detect]
-
-    # Phase 5 — Wi-Fi HaLow (experimental)
+    # Phase 4 — Wi-Fi HaLow (experimental, gated by halow_enable)
     - role: halow
       tags: [halow]
 
@@ -58,27 +50,6 @@
       tags: [monitoring]
 
   post_tasks:
-    - name: Install switch-profile.sh helper
-      ansible.builtin.copy:
-        src: ../scripts/switch-profile.sh
-        dest: /usr/local/bin/switch-profile.sh
-        mode: "0755"
-      tags: [radio]
-
-    - name: Trigger hat detection
-      ansible.builtin.systemd:
-        name: pirelay-detect-hat.service
-        state: restarted
-      changed_when: false
-      tags: [radio_detect]
-
-    - name: Read detected radio profile
-      ansible.builtin.slurp:
-        src: /run/pirelay/radio-profile
-      register: detected_profile_raw
-      failed_when: false
-      tags: [radio_detect]
-
     - name: Display deployment summary
       ansible.builtin.debug:
         msg: |
@@ -87,12 +58,10 @@
           ========================================
           Hostname:       {{ hostname }}
           Domain:         {{ domain }}
-          Detection mode: {{ radio_detection_mode }}
-          Radio profile:  {{ (detected_profile_raw.content | b64decode | trim) if detected_profile_raw.content is defined else 'unknown' }}
           Cockpit:        https://{{ domain }}/
           Gitea:          https://{{ domain }}/gitea/
           SSH:            ssh pi@{{ domain }}
           ========================================
-          To change hats: power off the Pi, swap the HAT, power on.
-          Detection re-runs automatically at boot.
+          LoRa stack:     systemctl status lora-mesh.target
+          Reticulum:      rnstatus
       tags: [always]

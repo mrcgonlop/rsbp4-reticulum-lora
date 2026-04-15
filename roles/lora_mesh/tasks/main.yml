@@ -66,10 +66,8 @@
     daemon_reload: true
   tags: [lora_mesh]
 
-- name: Ensure lora-mesh.target is NOT enabled on boot
+- name: Enable lora-mesh.target on boot
   ansible.builtin.systemd:
     name: lora-mesh.target
-    enabled: false
+    enabled: true
   tags: [lora_mesh]
-  # The pirelay-detect-hat.service starts this target only if an SX1262
-  # is detected at boot. Do not auto-enable it here.

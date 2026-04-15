@@ -18,31 +18,11 @@ halow_ssid: ""
 halow_psk: ""
 open_to_internet: false        # if true, open 80/443 in nftables
 
-# --- Radio profiles (single hat, auto-detected) -----------------------------
-# Only one hat is physically connected at a time. At boot, a detection
-# oneshot probes the SPI/GPIO lines and activates the matching systemd target.
-# To swap hats: power off, change the hat, power on — detection runs again.
-radio_detection_mode: auto     # auto | manual
-radio_profile_manual: none     # used when radio_detection_mode: manual
-                               # (none | lora-mesh | lorawan-gateway)
-radio_profile_fallback: none   # used when auto-detection finds no hat
-
-# --- GPIO pins (do NOT hardcode elsewhere) -----------------------------------
-wm1302_reset_gpio: 17
+# --- GPIO pins (SX1262 HAT) --------------------------------------------------
 sx1262_reset_gpio: 22
 sx1262_busy_gpio: 27
 sx1262_dio1_gpio: 4
-
-# --- SPI chip selects --------------------------------------------------------
-wm1302_spi_cs: 0               # CE0 = GPIO 8
 sx1262_spi_cs: 1               # CE1 = GPIO 7
-
-# --- LoRaWAN (WM1302 / ChirpStack) ------------------------------------------
-lorawan_region: EU868
-lorawan_gateway_id: ""         # auto-generated from MAC if empty
-chirpstack_version: "4"
-chirpstack_concentratord_version: "4.4.2"
-chirpstack_gateway_bridge_version: "4.0.11"
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
 rnode_port: /dev/ttyS0
@@ -78,7 +58,6 @@ swap_size_mb: 512
 
 disable_services:
   - bluetooth
-  - avahi-daemon
   - triggerhappy
   - ModemManager
 

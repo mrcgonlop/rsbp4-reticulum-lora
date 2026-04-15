@@ -1,8 +1,16 @@
-# PiRelay — Raspberry Pi 4 Communication Relay & Server
+# PiRelay — Raspberry Pi 4 Reticulum / LoRa Mesh Relay
 
 > A minimal, reproducible Ansible-driven build for a Raspberry Pi 4 serving as a
-> multi-protocol radio relay (LoRa, LoRaWAN, Wi-Fi HaLow, Reticulum) and
-> lightweight network server (Git, file sharing, web dashboard).
+> Reticulum / LoRa mesh node (Waveshare SX1262 868M HAT) and lightweight network
+> server (Git, file sharing, web dashboard).
+
+> ⚠️ **Doc drift notice.** The architecture was simplified to **SX1262 only**.
+> Sections below that reference LoRaWAN, the WM1302 HAT, ChirpStack, hat
+> auto-detection (`pirelay-detect-hat`), `switch-profile.sh`, `lorawan-gateway.target`,
+> or stacked/dual-hat setups are **out of date** and no longer reflect the
+> playbook. The source of truth is [CLAUDE.md](CLAUDE.md), [playbooks/site.yml](playbooks/site.yml),
+> and [group_vars/all.yml](group_vars/all.yml). This README will be rewritten in
+> a later pass; for now, trust the code.
 
 ---
 

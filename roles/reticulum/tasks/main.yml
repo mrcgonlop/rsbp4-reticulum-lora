@@ -58,59 +58,15 @@
     daemon_reload: true
   tags: [reticulum]
 
-- name: Ensure Reticulum is NOT auto-enabled on boot
+- name: Enable Reticulum on boot
   ansible.builtin.systemd:
     name: reticulum
-    enabled: false
+    enabled: true
   tags: [reticulum]
-  # Managed as part of lora-mesh.target; the pirelay-detect-hat service
-  # starts that target only if an SX1262 is detected at boot.
 
-- name: Ensure LXMF propagation is NOT auto-enabled on boot
+- name: Enable LXMF propagation on boot
   ansible.builtin.systemd:
     name: lxmf-propagation
-    enabled: false
+    enabled: true
   when: lxmf_enable | bool
-  tags: [reticulum]
-
-- name: Create reticulum.service override directory
-  ansible.builtin.file:
-    path: /etc/systemd/system/reticulum.service.d
-    state: directory
-    mode: "0755"
-  tags: [reticulum]
-
-- name: Bind reticulum.service to lora-mesh.target
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/reticulum.service.d/target.conf
-    content: |
-      [Unit]
-      PartOf=lora-mesh.target
-
-      [Install]
-      WantedBy=lora-mesh.target
-    mode: "0644"
-  notify: reload systemd
-  tags: [reticulum]
-
-- name: Create lxmf-propagation.service override directory
-  ansible.builtin.file:
-    path: /etc/systemd/system/lxmf-propagation.service.d
-    state: directory
-    mode: "0755"
-  when: lxmf_enable | bool
-  tags: [reticulum]
-
-- name: Bind lxmf-propagation.service to lora-mesh.target
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/lxmf-propagation.service.d/target.conf
-    content: |
-      [Unit]
-      PartOf=lora-mesh.target
-
-      [Install]
-      WantedBy=lora-mesh.target
-    mode: "0644"
-  when: lxmf_enable | bool
-  notify: reload systemd
   tags: [reticulum]
