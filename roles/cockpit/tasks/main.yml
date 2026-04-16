@@ -19,7 +19,7 @@
       # Accept all hostname/port variants so reverse-proxy + mDNS + direct
       # access all pass the Origin check. Cockpit compares the browser's
       # Origin header character-exactly, so every shape must be listed.
-      Origins = https://{{ domain }} https://{{ domain }}:443 https://{{ hostname }} https://{{ hostname }}:443 https://{{ hostname }}.local https://{{ hostname }}.local:443
+      Origins = https://{{ domain }} https://{{ domain }}:443 https://{{ hostname }} https://{{ hostname }}:443 https://{{ hostname }}.local https://{{ hostname }}.local:443 https://{{ ansible_default_ipv4.address }} https://{{ ansible_default_ipv4.address }}:443
       ProtocolHeader = X-Forwarded-Proto
       ForwardedForHeader = X-Forwarded-For
       LoginTo = false
