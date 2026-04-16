@@ -1,14 +1,24 @@
 # {{ ansible_managed }}
-# meshtasticd top-level config. Hardware (Lora:) comes from a config.d/
-# snippet symlinked from /etc/meshtasticd/available.d/ — see the role's
-# tasks/main.yml. This file is for non-hardware settings only.
+# meshtasticd config for Waveshare SX126X LoRa HAT on Raspberry Pi.
+#
+# Pin mapping from the official Meshtastic Waveshare preset
+# (lora-waveshare-sxxx.yaml). All values are BCM GPIO numbers.
+
+Lora:
+  Module: sx1262
+  DIO2_AS_RF_SWITCH: true
+  CS: 21
+  IRQ: 16
+  Busy: 20
+  Reset: 18
+  SX126X_ANT_SW: 6
 
 General:
   MaxNodes: 200
   MaxMessageQueue: 100
 
 Webserver:
-  Port: 9443
+  Port: {{ meshtastic_web_port }}
   RootPath: /usr/share/doc/meshtasticd/web
 
 GPS:
