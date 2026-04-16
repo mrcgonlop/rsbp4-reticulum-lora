@@ -89,6 +89,7 @@ firewall_allowed_tcp_ports:
   - 139
   - 445
   - 4242
+  - 4403          # meshtasticd TCP API (Python CLI, mobile apps)
 
 # --- Unattended upgrades ----------------------------------------------------
 enable_unattended_upgrades: true
