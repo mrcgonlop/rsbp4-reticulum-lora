@@ -148,6 +148,15 @@
   notify: restart meshtasticd
   tags: [meshtastic]
 
+# The official build.tar ships pre-compressed (.gz) static assets.
+# meshtasticd's built-in webserver doesn't serve .gz transparently,
+# so decompress everything in place.
+- name: Decompress web client assets
+  ansible.builtin.shell:
+    cmd: find /usr/share/doc/meshtasticd/web/ -name '*.gz' -exec gunzip -f {} \;
+  changed_when: true
+  tags: [meshtastic]
+
 - name: Enable and start meshtasticd
   ansible.builtin.systemd:
     name: meshtasticd
