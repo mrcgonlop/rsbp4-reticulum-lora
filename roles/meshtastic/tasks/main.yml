@@ -120,6 +120,34 @@
   notify: restart meshtasticd
   tags: [meshtastic]
 
+# The OBS meshtasticd package doesn't bundle the web UI. Download the
+# official static build from the meshtastic/web GitHub repo and extract
+# it into the path meshtasticd's Webserver.RootPath points at. This
+# gives full local access (node config, channel editor, map, messaging)
+# with zero internet dependency.
+- name: Create meshtasticd web root directory
+  ansible.builtin.file:
+    path: /usr/share/doc/meshtasticd/web
+    state: directory
+    mode: "0755"
+  tags: [meshtastic]
+
+- name: Download Meshtastic web client
+  ansible.builtin.get_url:
+    url: https://github.com/meshtastic/web/releases/download/v2.6.7/build.tar
+    dest: /tmp/meshtastic-web.tar
+    mode: "0644"
+  tags: [meshtastic]
+
+- name: Extract Meshtastic web client
+  ansible.builtin.unarchive:
+    src: /tmp/meshtastic-web.tar
+    dest: /usr/share/doc/meshtasticd/web
+    remote_src: true
+    extra_opts: [--strip-components=1]
+  notify: restart meshtasticd
+  tags: [meshtastic]
+
 - name: Enable and start meshtasticd
   ansible.builtin.systemd:
     name: meshtasticd
