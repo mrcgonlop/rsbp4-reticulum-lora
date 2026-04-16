@@ -60,11 +60,30 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+}
+
 {% if meshtastic_enable | bool %}
-    # --- Meshtastic Web UI ---
-    location /meshtastic/ {
-        # meshtasticd serves HTTPS on its webserver port; accept its
-        # self-signed cert on the backend side.
+# --- Meshtastic Web UI (dedicated port, root path) ---
+# The Meshtastic SPA uses root-relative asset paths so it must be served
+# at / — it cannot live under a sub-path. A separate server block on its
+# own port avoids colliding with Cockpit on 443.
+server {
+    listen {{ meshtastic_nginx_port }} ssl;
+    http2 on;
+    server_name {{ domain }} {{ hostname }} {{ ansible_default_ipv4.address | default('_') }};
+
+{% if tls_mode == "self-signed" %}
+    ssl_certificate /etc/nginx/ssl/pirelay.crt;
+    ssl_certificate_key /etc/nginx/ssl/pirelay.key;
+{% elif tls_mode == "letsencrypt" %}
+    ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
+{% endif %}
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
         proxy_pass https://127.0.0.1:{{ meshtastic_web_port }}/;
         proxy_ssl_verify off;
         proxy_http_version 1.1;
@@ -73,9 +92,9 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Meshtastic web client uses WebSocket for live updates
+        # WebSocket support for live mesh updates
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
     }
-{% endif %}
 }
+{% endif %}

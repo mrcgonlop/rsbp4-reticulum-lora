@@ -29,7 +29,8 @@ sx1262_spi_cs: 1               # CE1 = GPIO 7
 # --- Meshtastic --------------------------------------------------------------
 meshtastic_enable: true
 meshtastic_region: EU_868
-meshtastic_web_port: 9443
+meshtastic_web_port: 9443        # meshtasticd's built-in HTTPS port
+meshtastic_nginx_port: 4443      # nginx-proxied web UI (public-facing)
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
 rnode_port: /dev/ttyS0
@@ -90,7 +91,7 @@ firewall_allowed_tcp_ports:
   - 445
   - 4242
   - 4403          # meshtasticd TCP API (Python CLI, mobile apps)
-  - 9443          # meshtasticd HTTPS API (web client)
+  - 4443          # meshtastic web UI (nginx-proxied)
 
 # --- Unattended upgrades ----------------------------------------------------
 enable_unattended_upgrades: true
