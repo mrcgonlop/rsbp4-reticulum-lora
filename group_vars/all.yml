@@ -29,6 +29,7 @@ sx1262_spi_cs: 1               # CE1 = GPIO 7
 # --- Meshtastic --------------------------------------------------------------
 meshtastic_enable: true
 meshtastic_region: EU_868
+meshtastic_web_port: 9443
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
 rnode_port: /dev/ttyS0
