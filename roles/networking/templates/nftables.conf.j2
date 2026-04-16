@@ -18,21 +18,8 @@ table inet filter {
         ip protocol icmp accept
         ip6 nexthdr icmpv6 accept
 
-        # SSH
-        tcp dport {{ ssh_port }} accept
-
-        # HTTP/HTTPS (Nginx)
-        tcp dport { 80, 443 } accept
-
-        # Samba (LAN only)
-        tcp dport { 139, 445 } accept
-
-        # Reticulum shared instance
-        tcp dport 4242 accept
-
-{% if open_to_internet | bool %}
-        # Public access enabled
-{% endif %}
+        # Allowed TCP ports (from firewall_allowed_tcp_ports in group_vars)
+        tcp dport { {{ firewall_allowed_tcp_ports | join(', ') }} } accept
 
 {% if enable_monitoring | bool %}
         # Prometheus node_exporter (localhost only in production)
