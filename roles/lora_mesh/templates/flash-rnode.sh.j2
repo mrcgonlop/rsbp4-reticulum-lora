@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# Flash the Waveshare SX1262 HAT with RNode firmware.
-# Run once after initial hardware setup.
+# Flash a USB-connected RNode device (e.g. LilyGO T-Beam) with RNode firmware.
+# Run once after plugging in the device for the first time.
 
 set -euo pipefail
 
-echo "=== RNode Firmware Flash ==="
-echo "This will flash the SX1262 LoRa hat with RNode firmware."
-echo "Ensure the SX1262 hat is enabled (RESET pin HIGH) and no other"
-echo "services are using {{ rnode_port }}."
-echo ""
+PORT="${1:-{{ rnode_port }}}"
 
-# Reset the SX1262 chip first
-/usr/local/bin/sx1262-reset.sh
+echo "=== RNode Firmware Flash ==="
+echo "Target serial port: ${PORT}"
+echo
+echo "Make sure the T-Beam (or other RNode-capable board) is plugged in"
+echo "via USB and visible at ${PORT}. If it shows up at a different path"
+echo "(e.g. /dev/ttyACM0), pass it as the first argument to this script."
+echo
+
+if [[ ! -e "${PORT}" ]]; then
+    echo "ERROR: ${PORT} does not exist. Plug in the device or pass the" >&2
+    echo "correct path: $0 /dev/ttyACM0" >&2
+    exit 1
+fi
 
 # Prefer the console-script shim; fall back to the Python module so this
 # script survives pip entry-point weirdness (e.g. if rnodeconf's shim was
@@ -28,8 +35,8 @@ else
     exit 1
 fi
 
-echo "Starting RNode auto-install..."
-"${RNODECONF[@]}" {{ rnode_port }} --autoinstall
+echo "Starting RNode auto-install on ${PORT}..."
+"${RNODECONF[@]}" "${PORT}" --autoinstall
 
-echo ""
-echo "Flash complete. Verify with: ${RNODECONF[*]} {{ rnode_port }} --info"
+echo
+echo "Flash complete. Verify with: ${RNODECONF[*]} ${PORT} --info"

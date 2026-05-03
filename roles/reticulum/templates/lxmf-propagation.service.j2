@@ -6,7 +6,7 @@ Requires=reticulum.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/lxmd --propagation --config /etc/reticulum/config
+ExecStart=/usr/local/bin/lxmd --config /var/lib/lxmd --rnsconfig /var/lib/reticulum
 Restart=always
 RestartSec=10
 

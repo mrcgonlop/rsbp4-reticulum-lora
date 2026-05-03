@@ -1,8 +1,11 @@
 ---
-# roles/lora_mesh/tasks/main.yml — SX1262 SPI overlay, RNode firmware, systemd target
+# roles/lora_mesh/tasks/main.yml — RNode firmware flash helper + lora-mesh.target
 # Tags: lora_mesh
-
-# --- Dependencies ---
+#
+# The radio device is a USB-connected RNode-capable board (LilyGO T-Beam v1.2).
+# This role installs the flash helper and the systemd target that groups
+# Reticulum + LXMF services. The actual radio is managed by Reticulum's
+# RNodeInterface (no separate device daemon needed).
 
 - name: Install RNode dependencies
   ansible.builtin.apt:
@@ -23,25 +26,19 @@
     extra_args: --break-system-packages
   tags: [lora_mesh]
 
-# --- GPIO setup for SX1262 ---
-
-- name: Deploy SX1262 reset script
-  ansible.builtin.template:
-    src: sx1262-reset.sh.j2
-    dest: /usr/local/bin/sx1262-reset.sh
-    mode: "0755"
+- name: Allow pi user to access USB serial devices
+  ansible.builtin.user:
+    name: pi
+    groups: dialout
+    append: true
   tags: [lora_mesh]
 
-# --- RNode firmware flash script ---
-
-- name: Deploy RNode flash script
+- name: Deploy RNode flash helper
   ansible.builtin.template:
     src: flash-rnode.sh.j2
     dest: /usr/local/bin/flash-rnode.sh
     mode: "0755"
   tags: [lora_mesh]
-
-# --- lora-mesh systemd target ---
 
 - name: Deploy lora-mesh.target
   ansible.builtin.copy:
@@ -54,14 +51,6 @@
 
       [Install]
       WantedBy=multi-user.target
-    mode: "0644"
-  notify: reload systemd
-  tags: [lora_mesh]
-
-- name: Deploy rnoded service (RNode device manager)
-  ansible.builtin.template:
-    src: rnoded.service.j2
-    dest: /etc/systemd/system/rnoded.service
     mode: "0644"
   notify: reload systemd
   tags: [lora_mesh]

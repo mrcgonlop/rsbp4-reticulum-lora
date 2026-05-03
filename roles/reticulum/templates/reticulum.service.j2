@@ -5,14 +5,9 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/rnsd --config /etc/reticulum/config
+ExecStart=/usr/local/bin/rnsd --config /var/lib/reticulum --service
 Restart=always
 RestartSec=5
-
-# Hardening
-ProtectSystem=strict
-ReadWritePaths=/etc/reticulum /var/lib/reticulum
-PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

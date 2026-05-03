@@ -1,6 +1,11 @@
 ---
 # roles/reticulum/tasks/main.yml — Reticulum shared instance, LXMF, NomadNet
 # Tags: reticulum
+#
+# rnsd's --config flag points to a directory that holds both the config
+# file AND the runtime state (identities, packet log, storage). lxmd works
+# the same way and needs --rnsconfig to find the RNS instance.
+# We give each daemon its own state directory under /var/lib.
 
 - name: Install Reticulum and LXMF via pip
   ansible.builtin.pip:
@@ -17,17 +22,25 @@
   when: nomadnet_enable | bool
   tags: [reticulum]
 
-- name: Create Reticulum configuration directory
+- name: Create Reticulum state directory
   ansible.builtin.file:
-    path: /etc/reticulum
+    path: /var/lib/reticulum
     state: directory
     mode: "0755"
+  tags: [reticulum]
+
+- name: Create LXMF state directory
+  ansible.builtin.file:
+    path: /var/lib/lxmd
+    state: directory
+    mode: "0755"
+  when: lxmf_enable | bool
   tags: [reticulum]
 
 - name: Deploy Reticulum configuration
   ansible.builtin.template:
     src: config.j2
-    dest: /etc/reticulum/config
+    dest: /var/lib/reticulum/config
     mode: "0644"
   notify: restart reticulum
   tags: [reticulum]

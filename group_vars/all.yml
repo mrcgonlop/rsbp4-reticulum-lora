@@ -33,7 +33,7 @@ meshtastic_web_port: 9443        # meshtasticd's built-in HTTPS port
 meshtastic_nginx_port: 4443      # nginx-proxied web UI (public-facing)
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
-rnode_port: /dev/ttyUSB0          # LilyGO T-Beam via USB (may be ttyACM0)
+rnode_port: /dev/ttyACM0          # LilyGO T-Beam via USB (CH9102 = ttyACM0)
 rnode_frequency: 868000000
 rnode_bandwidth: 125000
 rnode_spreading_factor: 7
