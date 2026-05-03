@@ -27,13 +27,13 @@ sx1262_dio1_gpio: 4
 sx1262_spi_cs: 1               # CE1 = GPIO 7
 
 # --- Meshtastic --------------------------------------------------------------
-meshtastic_enable: true
+meshtastic_enable: false         # re-enable when a direct-SPI SX1262 HAT is available
 meshtastic_region: EU_868
 meshtastic_web_port: 9443        # meshtasticd's built-in HTTPS port
 meshtastic_nginx_port: 4443      # nginx-proxied web UI (public-facing)
 
 # --- Reticulum / LoRa mesh --------------------------------------------------
-rnode_port: /dev/ttyS0
+rnode_port: /dev/ttyUSB0          # LilyGO T-Beam via USB (may be ttyACM0)
 rnode_frequency: 868000000
 rnode_bandwidth: 125000
 rnode_spreading_factor: 7

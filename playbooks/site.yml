@@ -1,6 +1,7 @@
 ---
-# site.yml — Full PiRelay deployment (SX1262 / Reticulum)
+# site.yml — Full PiRelay deployment
 # Usage: ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+#        (or locally: sudo ansible-playbook -i "localhost," -c local playbooks/site.yml)
 #
 # Run with --check --diff for dry run.
 # Use --tags to target specific roles (e.g. --tags gitea,nginx).
@@ -66,9 +67,11 @@
           Cockpit:        https://{{ domain }}/
           Gitea:          https://{{ domain }}/gitea/
           SSH:            ssh pi@{{ domain }}
+          Samba:          \\{{ domain }}\shared
           ========================================
-          Meshtastic:     systemctl status meshtasticd
-                          meshtastic --info
           Reticulum:      systemctl status lora-mesh.target
-                          rnstatus (needs a USB RNode plugged in)
+                          rnstatus
+                          (plug in T-Beam USB RNode first)
+          Meshtastic:     disabled (set meshtastic_enable: true
+                          when a direct-SPI SX1262 HAT is available)
       tags: [always]
