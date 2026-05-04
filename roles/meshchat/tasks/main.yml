@@ -7,12 +7,14 @@
 # on 127.0.0.1 and is exposed via a dedicated nginx server block (the SPA
 # uses root-relative asset paths and won't work under a sub-path).
 
-- name: Ensure git and python venv tools are installed
+- name: Ensure build prerequisites are installed
   ansible.builtin.apt:
     name:
       - git
       - python3-venv
       - python3-pip
+      - nodejs           # trixie ships Node 20
+      - npm
     state: present
   tags: [meshchat]
 
@@ -50,6 +52,24 @@
       - websockets>=16.0
     virtualenv: "{{ meshchat_install_dir }}/venv"
     state: present
+  notify: restart meshchat
+  tags: [meshchat]
+
+# The web UI is a Vite/Vue SPA that must be built before meshchat.py can
+# serve it. Skip dev-only deps (electron toolchain) — they're huge and only
+# needed for the desktop binary builds.
+- name: Install meshchat npm dependencies
+  community.general.npm:
+    path: "{{ meshchat_install_dir }}"
+    production: true
+  notify: restart meshchat
+  tags: [meshchat]
+
+- name: Build meshchat frontend
+  ansible.builtin.command:
+    cmd: npm run build-frontend
+    chdir: "{{ meshchat_install_dir }}"
+    creates: "{{ meshchat_install_dir }}/public/index.html"
   notify: restart meshchat
   tags: [meshchat]
 
