@@ -68,6 +68,20 @@
   notify: restart nginx
   tags: [nginx]
 
+- name: Create services directory web root
+  ansible.builtin.file:
+    path: /var/www/services
+    state: directory
+    mode: "0755"
+  tags: [nginx]
+
+- name: Deploy services directory page
+  ansible.builtin.template:
+    src: services.html.j2
+    dest: /var/www/services/index.html
+    mode: "0644"
+  tags: [nginx]
+
 - name: Deploy PiRelay site configuration
   ansible.builtin.template:
     src: pirelay-site.conf.j2

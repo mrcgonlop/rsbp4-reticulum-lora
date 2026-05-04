@@ -29,6 +29,12 @@ server {
     # HSTS
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
+    # --- Services directory (static landing page) ---
+    location /services/ {
+        alias /var/www/services/;
+        index index.html;
+    }
+
     # --- Cockpit (root path) ---
     location / {
         proxy_pass http://{{ cockpit_bind_address }}:{{ cockpit_port }};
