@@ -43,6 +43,13 @@ reticulum_announce_interval: 360
 lxmf_enable: true
 nomadnet_enable: false
 
+# --- MeshChat (Reticulum web UI) -------------------------------------------
+meshchat_enable: true
+meshchat_version: master                 # git ref to check out
+meshchat_install_dir: /opt/reticulum-meshchat
+meshchat_internal_port: 8000             # localhost-only, fronted by nginx
+meshchat_nginx_port: 4444                # public-facing TLS port
+
 # --- Services ----------------------------------------------------------------
 gitea_version: "1.22.6"
 gitea_http_port: 3000
@@ -92,6 +99,7 @@ firewall_allowed_tcp_ports:
   - 4242
   - 4403          # meshtasticd TCP API (Python CLI, mobile apps)
   - 4443          # meshtastic web UI (nginx-proxied)
+  - 4444          # reticulum meshchat web UI (nginx-proxied)
 
 # --- Unattended upgrades ----------------------------------------------------
 enable_unattended_upgrades: true

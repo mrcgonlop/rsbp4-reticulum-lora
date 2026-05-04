@@ -3,7 +3,7 @@
 ## What this is
 Ansible playbook to provision a Raspberry Pi 4 as a **Reticulum / LoRa mesh relay** and lightweight server (Gitea, Samba, Cockpit, Nginx). Target OS is **Raspberry Pi OS Lite trixie (Debian 13) arm64**.
 
-The primary radio device is a **LilyGO T-Beam v1.2** connected via USB, running RNode firmware. The Pi has no usable radio HAT — see "Hardware history" below.
+The primary radio device is a **LilyGO T-Beam v1.2** connected via USB at `/dev/ttyACM0` (CH9102 USB-serial chip → CDC-ACM driver), running RNode firmware. **Reticulum is operational** — RNodeInterface, TCPServerInterface (port 4242), and AutoInterface are all up. Transport mode enabled. The Pi has no usable radio HAT — see "Hardware history" below.
 
 ## Architecture rules
 - **Ansible-only provisioning.** No manual steps on the Pi beyond flashing the SD card and a one-time `rnodeconf --autoinstall` to flash the T-Beam. Every configuration change goes through a role.
@@ -45,7 +45,9 @@ pirelay/
 - **Third-party apt repos must select the correct distro release.** The Pi runs trixie (Debian 13). Use `ansible_distribution_release` to pick the right subrepo dynamically (see meshtastic role for the pattern). On OBS repos, use `Debian_13` for arm64 (Raspbian_13 only publishes armhf).
 
 ## Key technical details
-- **Reticulum:** install via `pip install rns lxmf --break-system-packages`. Config at `/etc/reticulum/config`. Shared instance mode, transport enabled. `reticulum.service` and `lxmf-propagation.service` both enabled on boot and part of `lora-mesh.target`.
+- **Reticulum:** install via `pip install rns lxmf --break-system-packages`. Config + state at `/var/lib/reticulum/` (config file is `/var/lib/reticulum/config`). LXMF state at `/var/lib/lxmd/`. rnsd runs as `rnsd --config /var/lib/reticulum --service`; lxmd runs as `lxmd --config /var/lib/lxmd --rnsconfig /var/lib/reticulum`. Shared instance mode, transport enabled. `reticulum.service` and `lxmf-propagation.service` both enabled on boot and part of `lora-mesh.target`.
+- **RNS config format:** interface sections **must** be nested under a `[interfaces]` parent header — without it, `[[Foo]]` blocks fall under the previous section ([logging]) and get silently ignored. rnsd will start successfully but with zero interfaces.
+- **CLI tools default to `~/.reticulum/`** which is empty/wrong — always pass `--config /var/lib/reticulum` to rnstatus/rnid/rnpath, or symlink `~/.reticulum -> /var/lib/reticulum`.
 - **RNode (T-Beam):** flash once with `rnodeconf --autoinstall` via USB. The T-Beam then appears as a serial RNode device that Reticulum's `RNodeInterface` talks to.
 - **Meshtastic (disabled):** `meshtasticd` installed from OBS Debian_13 arm64 repo, web UI from GitHub meshtastic/web releases. Requires a direct-SPI SX1262 HAT (not the E22-900T22S UART module). Gated by `meshtastic_enable`.
 - **pip on trixie:** Debian's PEP 668 enforcement blocks system-wide pip installs. Use `--break-system-packages` for system services, or `pipx install --global` for CLI tools (meshtastic CLI uses pipx).

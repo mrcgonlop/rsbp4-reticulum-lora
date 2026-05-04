@@ -1,0 +1,79 @@
+---
+# roles/meshchat/tasks/main.yml — Reticulum MeshChat web UI
+# Tags: meshchat
+#
+# Reticulum MeshChat is not on PyPI and has no arm64 prebuilt binary, so we
+# run it from a git checkout in a dedicated Python venv. The web UI listens
+# on 127.0.0.1 and is exposed via a dedicated nginx server block (the SPA
+# uses root-relative asset paths and won't work under a sub-path).
+
+- name: Ensure git and python venv tools are installed
+  ansible.builtin.apt:
+    name:
+      - git
+      - python3-venv
+      - python3-pip
+    state: present
+  tags: [meshchat]
+
+- name: Create meshchat install directory
+  ansible.builtin.file:
+    path: "{{ meshchat_install_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [meshchat]
+
+- name: Clone Reticulum MeshChat repo
+  ansible.builtin.git:
+    repo: https://github.com/liamcottle/reticulum-meshchat.git
+    dest: "{{ meshchat_install_dir }}"
+    version: "{{ meshchat_version }}"
+    update: true
+  notify: restart meshchat
+  tags: [meshchat]
+
+- name: Create meshchat Python venv
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ meshchat_install_dir }}/venv
+    creates: "{{ meshchat_install_dir }}/venv/bin/python"
+  tags: [meshchat]
+
+# Install the runtime dependencies only (skip cx_freeze, which is the
+# desktop-build tool — pulling it in would compile a lot for nothing).
+- name: Install meshchat runtime dependencies into venv
+  ansible.builtin.pip:
+    name:
+      - aiohttp>=3.13.3
+      - lxmf>=0.9.3
+      - peewee>=3.18.1,<4.0.0
+      - rns>=1.1.4
+      - websockets>=16.0
+    virtualenv: "{{ meshchat_install_dir }}/venv"
+    state: present
+  notify: restart meshchat
+  tags: [meshchat]
+
+- name: Create meshchat state directory
+  ansible.builtin.file:
+    path: /var/lib/meshchat
+    state: directory
+    mode: "0755"
+  tags: [meshchat]
+
+- name: Deploy meshchat systemd service
+  ansible.builtin.template:
+    src: meshchat.service.j2
+    dest: /etc/systemd/system/meshchat.service
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart meshchat
+  tags: [meshchat]
+
+- name: Enable and start meshchat
+  ansible.builtin.systemd:
+    name: meshchat
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [meshchat]

@@ -47,6 +47,10 @@
     - role: reticulum
       tags: [reticulum]
 
+    - role: meshchat
+      tags: [meshchat]
+      when: meshchat_enable | bool
+
     # Phase 5 — Wi-Fi HaLow (experimental, gated by halow_enable)
     - role: halow
       tags: [halow]
@@ -69,9 +73,10 @@
           SSH:            ssh pi@{{ domain }}
           Samba:          \\{{ domain }}\shared
           ========================================
-          Reticulum:      systemctl status lora-mesh.target
-                          rnstatus
-                          (plug in T-Beam USB RNode first)
+          Reticulum:      rnstatus --config /var/lib/reticulum -A
+                          systemctl status lora-mesh.target
+          MeshChat:       https://{{ domain }}:{{ meshchat_nginx_port }}/
+          ========================================
           Meshtastic:     disabled (set meshtastic_enable: true
                           when a direct-SPI SX1262 HAT is available)
       tags: [always]

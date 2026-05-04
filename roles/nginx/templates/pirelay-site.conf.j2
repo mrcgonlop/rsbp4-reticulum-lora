@@ -62,6 +62,43 @@ server {
 
 }
 
+{% if meshchat_enable | bool %}
+# --- Reticulum MeshChat Web UI (dedicated port, root path) ---
+server {
+    listen {{ meshchat_nginx_port }} ssl;
+    http2 on;
+    server_name {{ domain }} {{ hostname }} {{ ansible_default_ipv4.address | default('_') }};
+
+{% if tls_mode == "self-signed" %}
+    ssl_certificate /etc/nginx/ssl/pirelay.crt;
+    ssl_certificate_key /etc/nginx/ssl/pirelay.key;
+{% elif tls_mode == "letsencrypt" %}
+    ssl_certificate /etc/letsencrypt/live/{{ domain }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ domain }}/privkey.pem;
+{% endif %}
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ meshchat_internal_port }}/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support — meshchat streams events live
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        # Long-lived WS connections
+        proxy_read_timeout 90m;
+        proxy_buffering off;
+    }
+}
+{% endif %}
+
 {% if meshtastic_enable | bool %}
 # --- Meshtastic Web UI (dedicated port, root path) ---
 # The Meshtastic SPA uses root-relative asset paths so it must be served

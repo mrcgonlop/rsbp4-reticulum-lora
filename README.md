@@ -14,7 +14,7 @@ Target OS: **Raspberry Pi OS Lite trixie (Debian 13) arm64**.
 | Component | Role | Interface | Status |
 |---|---|---|---|
 | Raspberry Pi 4 (4 GB+) | Host | Ethernet | Working |
-| LilyGO T-Beam v1.2 | RNode for Reticulum + Meshtastic | USB serial | Pending delivery |
+| LilyGO T-Beam v1.2 | RNode for Reticulum + Meshtastic | USB serial (`/dev/ttyACM0`) | Working — RNode firmware 1.86, EU868 |
 | MicroSD 32 GB+ (A2) | Boot/root | -- | Working |
 | 5V / 3A USB-C PSU | Power | -- | **Required** (undervoltage with weaker supplies) |
 
@@ -150,22 +150,76 @@ ansible-playbook playbooks/site.yml
 # Local: sudo ansible-playbook -i "localhost," -c local playbooks/site.yml
 ```
 
-### When the T-Beam arrives
+### T-Beam setup (already done, reference)
 
 ```bash
-# 1. Plug T-Beam into Pi via USB
+# 1. Plug T-Beam into Pi via USB (appears as /dev/ttyACM0 with CH9102 chip)
 # 2. Flash RNode firmware (one-time)
-ssh pi@pirelay.local
-sudo /usr/local/bin/flash-rnode.sh
+sudo rnodeconf /dev/ttyACM0 --autoinstall   # pick "LilyGO T-Beam"
 
 # 3. Verify
-rnodeconf /dev/ttyUSB0 --info
+rnodeconf /dev/ttyACM0 --info
 
-# 4. Re-run playbook to start Reticulum
-sudo ansible-playbook -i "localhost," -c local playbooks/site.yml --tags lora_mesh,reticulum
+# 4. Bring up Reticulum
+sudo systemctl start lora-mesh.target
+rnstatus --config /var/lib/reticulum -A
+```
 
-# 5. Check status
-rnstatus
+---
+
+## Connecting from your workstation
+
+The Pi exposes Reticulum via a TCP server on **port 4242**. From any device on your LAN, install Reticulum and connect to it.
+
+### Windows / macOS / Linux setup
+
+```bash
+pip install rns lxmf
+```
+
+Edit `~/.reticulum/config` (created on first run of `rnstatus`) and add:
+
+```
+[interfaces]
+  [[PiRelay TCP]]
+    type = TCPClientInterface
+    interface_enabled = True
+    target_host = 192.168.1.42       # your Pi's IP
+    target_port = 4242
+```
+
+Now any Reticulum app on your workstation routes through the Pi to the LoRa mesh.
+
+### Best UI options
+
+| Tool | Platform | Best for |
+|---|---|---|
+| **[Sideband](https://unsigned.io/sideband/)** | Android, iOS, desktop | Daily use — polished UI, messaging, file transfer, voice. Direct LXMF inbox. |
+| **[MeshChat](https://github.com/liamcottle/reticulum-meshchat)** | Web (runs anywhere) | Desktop / browser. Modern web UI, nicest visual experience on PC. |
+| **NomadNet** | TUI (terminal) | Lightweight, lives over SSH, classic mesh interface with node directory. |
+
+**Recommended for your setup:** **Sideband** on your phone (point it at the Pi's TCP interface for fast LAN connection, falls back to LoRa when out of range) + **MeshChat** on your desktop browser.
+
+### MeshChat is preinstalled
+
+The `meshchat` role clones [reticulum-meshchat](https://github.com/liamcottle/reticulum-meshchat) into `/opt/reticulum-meshchat`, runs it under systemd, and exposes the web UI behind nginx at:
+
+**`https://192.168.1.42:4444/`** (or `https://pirelay.local:4444/`)
+
+It shares the Pi's Reticulum instance, so any contact you message via MeshChat goes out over the LoRa mesh and TCP server. Disable the role by setting `meshchat_enable: false` in `group_vars/all.yml` if you don't want it.
+
+### Discovering nearby nodes
+
+Reticulum is decentralised — there is no global directory. Two ways to find nodes:
+
+1. **Public map** at [map.reticulum.network](https://map.reticulum.network/) — shows nodes that have opted into the LXMF Network Map. Useful to see if there's existing activity in your city.
+2. **Listen passively** — let `rnsd` run for a few hours. Any nearby Reticulum node within LoRa range will eventually announce, and you'll see them in `rnstatus -A`. Add them as contacts in Sideband/MeshChat to start messaging.
+
+To make your own node discoverable on the public map, run:
+
+```bash
+sudo rnpath --config /var/lib/reticulum --tabulate
+# follow the LXMF Network Map node opt-in instructions on its homepage
 ```
 
 ---

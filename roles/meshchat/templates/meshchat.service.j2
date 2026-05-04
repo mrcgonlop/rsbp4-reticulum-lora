@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Reticulum MeshChat Web UI
+After=reticulum.service
+Wants=reticulum.service
+
+[Service]
+Type=simple
+WorkingDirectory={{ meshchat_install_dir }}
+ExecStart={{ meshchat_install_dir }}/venv/bin/python {{ meshchat_install_dir }}/meshchat.py \
+    --headless \
+    --host 127.0.0.1 \
+    --port {{ meshchat_internal_port }} \
+    --reticulum-config-dir /var/lib/reticulum \
+    --storage-dir /var/lib/meshchat
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
