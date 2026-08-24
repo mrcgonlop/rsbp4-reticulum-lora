@@ -105,6 +105,7 @@ firewall_allowed_tcp_ports:
   - 4403          # meshtasticd TCP API (Python CLI, mobile apps)
   - 4443          # meshtastic web UI (nginx-proxied)
   - 4444          # reticulum meshchat web UI (nginx-proxied)
+  - 22000         # syncthing tcp
 
 # --- Unattended upgrades ----------------------------------------------------
 enable_unattended_upgrades: true
