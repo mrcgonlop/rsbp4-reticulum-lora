@@ -35,6 +35,9 @@
     - role: samba
       tags: [samba]
 
+    - role: syncthing
+      tags: [syncthing]
+
     # Phase 3 — Meshtastic (Waveshare SX1262 HAT, SPI)
     - role: meshtastic
       tags: [meshtastic]

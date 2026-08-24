@@ -45,6 +45,11 @@
   <td><a href="https://{{ ansible_default_ipv4.address }}/gitea/">https://{{ ansible_default_ipv4.address }}/gitea/</a></td>
   <td class="port">443 → {{ gitea_http_port }}</td>
 </tr>
+<tr>
+  <td>Syncthing <span class="ok">●</span></td>
+  <td><a href="https://{{ ansible_default_ipv4.address }}/syncthing/">https://{{ ansible_default_ipv4.address }}/syncthing/</a></td>
+  <td class="port">443 → 8384</td>
+</tr>
 {% if meshchat_enable | bool %}
 <tr>
   <td>Reticulum MeshChat <span class="ok">●</span></td>

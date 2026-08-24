@@ -89,6 +89,11 @@ nginx_worker_connections: 512
 cockpit_bind_address: 127.0.0.1
 cockpit_port: 9090
 
+# --- Syncthing ---------------------------------------------------------------
+syncthing_user: pi
+syncthing_gui_port: 8384
+syncthing_web_path: /syncthing
+
 # --- Firewall (LAN-only ports) ----------------------------------------------
 firewall_allowed_tcp_ports:
   - 22
