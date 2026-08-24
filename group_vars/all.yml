@@ -107,5 +107,9 @@ firewall_allowed_tcp_ports:
   - 4444          # reticulum meshchat web UI (nginx-proxied)
   - 22000         # syncthing tcp
 
+# UDP ports (discovery, etc.)
+firewall_allowed_udp_ports:
+  - 21027          # Syncthing local discovery
+
 # --- Unattended upgrades ----------------------------------------------------
 enable_unattended_upgrades: true

@@ -21,6 +21,9 @@ table inet filter {
         # Allowed TCP ports (from firewall_allowed_tcp_ports in group_vars)
         tcp dport { {{ firewall_allowed_tcp_ports | join(', ') }} } accept
 
+        # Allowed UDP ports (from firewall_allowed_udp_ports in group_vars)
+        udp dport { {{ firewall_allowed_udp_ports | join(', ') }} } accept
+
 {% if enable_monitoring | bool %}
         # Prometheus node_exporter (localhost only in production)
         tcp dport 9100 ip saddr 127.0.0.0/8 accept
