@@ -51,7 +51,7 @@ meshchat_internal_port: 8000             # localhost-only, fronted by nginx
 meshchat_nginx_port: 4444                # public-facing TLS port
 
 # --- Services ----------------------------------------------------------------
-gitea_version: "1.22.6"
+gitea_version: "1.27.1"
 gitea_http_port: 3000
 gitea_db: sqlite3
 
